@@ -1,0 +1,11 @@
+from moveit_configs_utils import MoveItConfigsBuilder
+from moveit_configs_utils.launches import generate_move_group_launch
+
+
+def generate_launch_description():
+    moveit_config = MoveItConfigsBuilder("rover_arm", package_name="rover_arm_moveit_config").parameter("use_sim_time", True).to_moveit_configs()
+    return generate_move_group_launch(moveit_config)
+
+
+'''Note: This launch node has been replaced with the new custom made move_group.launch.py in order to change move_grp clock from 
+wall time to gazebo time'''

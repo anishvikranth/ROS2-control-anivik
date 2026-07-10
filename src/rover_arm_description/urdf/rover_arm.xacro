@@ -229,4 +229,46 @@
     <axis xyz="1 0 0" />
     <limit effort="27.459999" velocity="1" lower="-1.570795" upper="1.570795" />
   </joint>
+<ros2_control name="RoverArm" type="system">
+  <hardware>
+    <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+  </hardware>
+  <joint name="base_link_joint">
+    <command_interface name="position" />
+    <state_interface name="position" />
+    <state_interface name="velocity" />
+  </joint>
+  <joint name="elbow_link_joint">
+    <command_interface name="position" />
+    <state_interface name="position" />
+    <state_interface name="velocity" />
+  </joint>
+  <joint name="left_finger_link_joint"> 
+    <command_interface name="position" />
+    <state_interface name="position" />
+    <state_interface name="velocity" />
+  </joint>
+  <joint name="palm_link_joint">
+    <command_interface name="position" />
+    <state_interface name="position" />
+    <state_interface name="velocity" />
+  </joint>
+  <joint name="right_finger_link_joint">
+    <command_interface name="position" />
+    <state_interface name="position" />
+    <state_interface name="velocity" />
+  </joint>
+  <joint name="shoulder_link_joint">
+    <command_interface name="position" />
+    <state_interface name="position" /> 
+    <state_interface name="velocity" />
+  </joint>
+  <joint name="wrist_link_joint">
+    <command_interface name="position" />  
+    <state_interface name="position" />
+    <state_interface name="velocity" />
+  </joint>
+</ros2_control> 
+
+
 </robot>
