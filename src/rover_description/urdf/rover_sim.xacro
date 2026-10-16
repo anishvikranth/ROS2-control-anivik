@@ -1,0 +1,504 @@
+<?xml version="1.0"?>
+<robot name="rover" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Materials -->
+  <material name="aluminum_gray">
+    <color rgba="0.75 0.75 0.75 1.0"/>
+  </material>
+  <material name="off_black">
+    <color rgba="0.2 0.2 0.2 1.0"/>
+  </material>
+
+  <!-- Links -->
+  <link name="back_left_wheel_link">
+    <inertial>
+      <origin rpy="-1.570796 -0.000001 0.000001" xyz="-0.000784 0.092012 -0.001876"/>
+      <mass value="3"/>
+      <inertia ixx="0.019211" ixy="0" ixz="0" iyy="0.019211" iyz="0" izz="0.02149"/>
+    </inertial>
+    <visual>
+      <origin rpy="-1.570796 -0.000001 0.000001" xyz="-0.000784 0.092012 -0.001876"/>
+      <geometry>
+        <mesh filename="package://rover_description/urdf/meshes/back_left_wheel_link_visual.obj"/>
+      </geometry>
+      <material name="off_black"/>
+    </visual>
+    <collision>
+      <origin rpy="-1.570796 -0.000001 0.000001" xyz="-0.000784 0.092012 -0.001876"/>
+      <geometry>
+        <cylinder length="0.184024" radius="0.119695"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="back_right_wheel_link">
+    <inertial>
+      <origin rpy="1.570796 0 0" xyz="-0.000784 -0.092012 0.001876"/>
+      <mass value="3"/>
+      <inertia ixx="0.019211" ixy="0" ixz="0" iyy="0.019211" iyz="0" izz="0.02149"/>
+    </inertial>
+    <visual>
+      <origin rpy="1.570796 0 0" xyz="-0.000784 -0.092012 0.001876"/>
+      <geometry>
+        <mesh filename="package://rover_description/urdf/meshes/back_right_wheel_link_visual.obj"/>
+      </geometry>
+      <material name="off_black"/>
+    </visual>
+    <collision>
+      <origin rpy="1.570796 0 0" xyz="-0.000784 -0.092012 0.001876"/>
+      <geometry>
+        <cylinder length="0.184024" radius="0.119695"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="chassis_footprint">
+    <inertial>
+      <mass value="1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+  </link>
+
+  <link name="chassis_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0.120509"/>
+      <mass value="10"/>
+      <inertia ixx="0.299083" ixy="0" ixz="0" iyy="0.33375" iyz="0" izz="0.451333"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0.120509"/>
+      <geometry>
+        <mesh filename="package://rover_description/urdf/meshes/chassis_link_visual.obj"/>
+      </geometry>
+      <material name="aluminum_gray"/>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.120509"/>
+      <geometry>
+        <box size="0.54 0.5 0.33"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="front_left_wheel_link">
+    <inertial>
+      <origin rpy="-1.570796 0 0" xyz="-0.000784 0.092012 -0.001876"/>
+      <mass value="3"/>
+      <inertia ixx="0.019211" ixy="0" ixz="0" iyy="0.019211" iyz="0" izz="0.02149"/>
+    </inertial>
+    <visual>
+      <origin rpy="-1.570796 0 0" xyz="-0.000784 0.092012 -0.001876"/>
+      <geometry>
+        <mesh filename="package://rover_description/urdf/meshes/front_left_wheel_link_visual.obj"/>
+      </geometry>
+      <material name="off_black"/>
+    </visual>
+    <collision>
+      <origin rpy="-1.570796 0 0" xyz="-0.000784 0.092012 -0.001876"/>
+      <geometry>
+        <cylinder length="0.184024" radius="0.119695"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="left_back_wheel_link">
+    <inertial>
+      <origin rpy="1.570796 0 0" xyz="-0.000784 -0.092012 0.001876"/>
+      <mass value="3"/>
+      <inertia ixx="0.019211" ixy="0" ixz="0" iyy="0.019211" iyz="0" izz="0.02149"/>
+    </inertial>
+    <visual>
+      <origin rpy="1.570796 0 0" xyz="-0.000784 -0.092012 0.001876"/>
+      <geometry>
+        <mesh filename="package://rover_description/urdf/meshes/left_back_wheel_link_visual.obj"/>
+      </geometry>
+      <material name="off_black"/>
+    </visual>
+    <collision>
+      <origin rpy="1.570796 0 0" xyz="-0.000784 -0.092012 0.001876"/>
+      <geometry>
+        <cylinder length="0.184024" radius="0.119695"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="left_bogie_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.001424 0.0005 -0.093084"/>
+      <mass value="5"/>
+      <inertia ixx="0.833333" ixy="0" ixz="0" iyy="0.833333" iyz="0" izz="0.833333"/>
+    </inertial>
+    <visual>
+      <origin rpy="1.570796 0 0" xyz="0.004906 0 -0.09396"/>
+      <geometry>
+        <mesh filename="package://rover_description/urdf/meshes/left_bogie_link_visual.obj"/>
+      </geometry>
+      <material name="aluminum_gray"/>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.001424 0.0005 -0.093084"/>
+      <geometry>
+        <mesh filename="package://rover_description/urdf/meshes/left_bogie_link_collision.stl"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="left_rocker_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="-0.180935 -0.001197 -0.156518"/>
+      <mass value="4"/>
+      <inertia ixx="0.666667" ixy="0" ixz="0" iyy="0.666667" iyz="0" izz="0.666667"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="-0.17271 0 -0.157656"/>
+      <geometry>
+        <mesh filename="package://rover_description/urdf/meshes/left_rocker_link_visual.obj"/>
+      </geometry>
+      <material name="aluminum_gray"/>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="-0.180935 -0.001197 -0.156518"/>
+      <geometry>
+        <mesh filename="package://rover_description/urdf/meshes/left_rocker_link_collision.stl"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="middle_left_wheel_link">
+    <inertial>
+      <origin rpy="-1.570796 0 0.000001" xyz="-0.000784 0.092012 -0.001876"/>
+      <mass value="3"/>
+      <inertia ixx="0.019211" ixy="0" ixz="0" iyy="0.019211" iyz="0" izz="0.02149"/>
+    </inertial>
+    <visual>
+      <origin rpy="-1.570796 0 0.000001" xyz="-0.000784 0.092012 -0.001876"/>
+      <geometry>
+        <mesh filename="package://rover_description/urdf/meshes/middle_left_wheel_link_visual.obj"/>
+      </geometry>
+      <material name="off_black"/>
+    </visual>
+    <collision>
+      <origin rpy="-1.570796 0 0.000001" xyz="-0.000784 0.092012 -0.001876"/>
+      <geometry>
+        <cylinder length="0.184024" radius="0.119695"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="middle_right_wheel_link">
+    <inertial>
+      <origin rpy="1.570796 0 0" xyz="-0.000784 -0.092012 0.001876"/>
+      <mass value="3"/>
+      <inertia ixx="0.019211" ixy="0" ixz="0" iyy="0.019211" iyz="0" izz="0.02149"/>
+    </inertial>
+    <visual>
+      <origin rpy="1.570796 0 0" xyz="-0.000784 -0.092012 0.001876"/>
+      <geometry>
+        <mesh filename="package://rover_description/urdf/meshes/middle_right_wheel_link_visual.obj"/>
+      </geometry>
+      <material name="off_black"/>
+    </visual>
+    <collision>
+      <origin rpy="1.570796 0 0" xyz="-0.000784 -0.092012 0.001876"/>
+      <geometry>
+        <cylinder length="0.184024" radius="0.119695"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="right_bogie_link">
+    <inertial>
+      <origin rpy="-1.570799 3.138344 0" xyz="-0.00177 -0.0005 -0.093474"/>
+      <mass value="5"/>
+      <inertia ixx="0.833333" ixy="0" ixz="0" iyy="0.833333" iyz="0" izz="0.833333"/>
+    </inertial>
+    <visual>
+      <origin rpy="1.570794 0 -3.141593" xyz="-0.004907 0 -0.09396"/>
+      <geometry>
+        <mesh filename="package://rover_description/urdf/meshes/right_bogie_link_visual.obj"/>
+      </geometry>
+      <material name="aluminum_gray"/>
+    </visual>
+    <collision>
+      <origin rpy="-1.570799 3.138344 0" xyz="-0.00177 -0.0005 -0.093474"/>
+      <geometry>
+        <mesh filename="package://rover_description/urdf/meshes/right_bogie_link_collision.stl"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="right_rocker_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="-0.180935 -0.001197 -0.156518"/>
+      <mass value="4"/>
+      <inertia ixx="0.666667" ixy="0" ixz="0" iyy="0.666667" iyz="0" izz="0.666667"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="-0.17271 0 -0.157656"/>
+      <geometry>
+        <mesh filename="package://rover_description/urdf/meshes/right_rocker_link_visual.obj"/>
+      </geometry>
+      <material name="aluminum_gray"/>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="-0.180935 -0.001197 -0.156518"/>
+      <geometry>
+        <mesh filename="package://rover_description/urdf/meshes/right_rocker_link_collision.stl"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="zed_camera_link">
+    <inertial>
+      <origin rpy="0 -1.570796 0" xyz="0.02155 0 0"/>
+      <mass value="0.229"/>
+      <inertia ixx="0.000622" ixy="0" ixz="0" iyy="0.000053" iyz="0" izz="0.000604"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0.02155 0 0"/>
+      <geometry>
+        <mesh filename="package://rover_description/urdf/meshes/zed_camera_link_visual.stl"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 -1.570796 0" xyz="0.02155 0 0"/>
+      <geometry>
+        <box size="0.0303 0.1753 0.0431"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="zed_camera_optical_frame"/>
+
+  <!-- Joints -->
+  <joint name="back_left_wheel_link_joint" type="continuous">
+    <origin rpy="0 0 0" xyz="-0.550766 0.0235 -0.305642"/>
+    <parent link="left_rocker_link"/>
+    <child link="back_left_wheel_link"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="10" lower="0" upper="0" velocity="1"/>
+    <dynamics damping="1.0" friction="1.5"/>
+  </joint>
+
+  <joint name="back_right_wheel_link_joint" type="continuous">
+    <origin rpy="0 0 0" xyz="-0.55172 -0.0135 -0.306193"/>
+    <parent link="right_rocker_link"/>
+    <child link="back_right_wheel_link"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="10" lower="0" upper="0" velocity="1"/>
+    <dynamics damping="1.0" friction="1.5"/>
+  </joint>
+
+  <joint name="chassis_link_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0.017593 -0.313117 -0.118479"/>
+    <parent link="chassis_footprint"/>
+    <child link="chassis_link"/>
+  </joint>
+
+  <joint name="front_left_wheel_link_joint" type="continuous">
+    <origin rpy="0 0 0" xyz="0.246102 0.0235 -0.202872"/>
+    <parent link="left_bogie_link"/>
+    <child link="front_left_wheel_link"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="10" lower="0" upper="0" velocity="1"/>
+    <dynamics damping="1.0" friction="1.5"/>
+  </joint>
+
+  <joint name="left_back_wheel_link_joint" type="continuous">
+    <origin rpy="0 0 0" xyz="0.247131 -0.0135 -0.201737"/>
+    <parent link="right_bogie_link"/>
+    <child link="left_back_wheel_link"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="10" lower="0" upper="0" velocity="1"/>
+    <dynamics damping="1.0" friction="1.5"/>
+  </joint>
+
+  <joint name="left_bogie_link_joint" type="revolute">
+    <origin rpy="-0.000001 0 0" xyz="0.210291 0 -0.190873"/>
+    <parent link="left_rocker_link"/>
+    <child link="left_bogie_link"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="10" lower="-3.141593" upper="3.141593" velocity="1"/>
+    <dynamics damping="0.3" friction="0.5"/>
+  </joint>
+
+  <joint name="left_rocker_link_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="-0.017593 0.313117 0.118479"/>
+    <parent link="chassis_link"/>
+    <child link="left_rocker_link"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="10" lower="-1.570795" upper="1.570795" velocity="1"/>
+    <dynamics damping="0.5" friction="10.0"/>
+  </joint>
+
+  <joint name="middle_left_wheel_link_joint" type="continuous">
+    <origin rpy="0 0 0" xyz="-0.236289 0.0235 -0.201885"/>
+    <parent link="left_bogie_link"/>
+    <child link="middle_left_wheel_link"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="10" lower="0" upper="0" velocity="1"/>
+    <dynamics damping="1.0" friction="1.5"/>
+  </joint>
+
+  <joint name="middle_right_wheel_link_joint" type="continuous">
+    <origin rpy="0 0 0" xyz="-0.236289 -0.0135 -0.201885"/>
+    <parent link="right_bogie_link"/>
+    <child link="middle_right_wheel_link"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="10" lower="0" upper="0" velocity="1"/>
+    <dynamics damping="1.0" friction="1.5"/>
+  </joint>
+
+  <joint name="right_bogie_link_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="0.210291 0 -0.190873"/>
+    <parent link="right_rocker_link"/>
+    <child link="right_bogie_link"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="10" lower="-3.141593" upper="3.141593" velocity="1"/>
+    <dynamics damping="0.3" friction="0.5"/>
+  </joint>
+
+  <joint name="right_rocker_link_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="-0.018794 -0.317419 0.125316"/>
+    <parent link="chassis_link"/>
+    <child link="right_rocker_link"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="10" lower="-3.141593" upper="3.141593" velocity="1"/>
+    <dynamics damping="0.5" friction="10.0"/>
+  </joint>
+
+  <joint name="zed_camera_link_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0.27 0 0.30"/>
+    <parent link="chassis_link"/>
+    <child link="zed_camera_link"/>
+  </joint>
+
+  <joint name="zed_camera_optical_frame_joint" type="fixed">
+    <origin rpy="-1.5707963267948966 0.0 -1.5707963267948966" xyz="0.0 0.0 0.0"/>
+    <parent link="zed_camera_link"/>
+    <child link="zed_camera_optical_frame"/>
+  </joint>
+
+  <!-- Gazebo Plugins -->
+  <gazebo>
+    <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
+      <topic>joint_states</topic>
+    </plugin>
+  </gazebo>
+
+  <gazebo>
+    <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+      <left_joint>front_left_wheel_link_joint</left_joint>
+      <left_joint>middle_left_wheel_link_joint</left_joint>
+      <left_joint>back_left_wheel_link_joint</left_joint>
+      <right_joint>left_back_wheel_link_joint</right_joint>
+      <right_joint>middle_right_wheel_link_joint</right_joint>
+      <right_joint>back_right_wheel_link_joint</right_joint>
+      <wheel_separation>0.63</wheel_separation>
+      <wheel_radius>0.119695</wheel_radius>
+      <max_linear_acceleration>1.0</max_linear_acceleration>
+      <max_angular_acceleration>2.0</max_angular_acceleration>
+      <topic>cmd_vel</topic>
+      <odom_topic>odom</odom_topic>
+      <tf_topic>tf</tf_topic>
+      <frame_id>odom</frame_id>
+      <child_frame_id>chassis_footprint</child_frame_id>
+      <odom_publish_frequency>30</odom_publish_frequency>
+    </plugin>
+  </gazebo>
+
+  <gazebo>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+  </gazebo>
+
+  <!-- Gazebo Sensors (Attached directly to zed_camera_link) -->
+  <gazebo reference="zed_camera_link">
+    <visual>
+      <material>
+        <ambient>0.1 0.1 0.1 1.0</ambient>
+        <diffuse>0.15 0.15 0.15 1.0</diffuse>
+        <specular>0.4 0.4 0.4 1.0</specular>
+      </material>
+    </visual>
+
+    <!-- RGB Camera Sensor -->
+    <sensor name="zed_rgb_camera" type="camera">
+      <always_on>true</always_on>
+      <update_rate>15</update_rate>
+      <visualize>true</visualize>
+      <topic>/zed/image_raw</topic>
+      <gz_frame_id>zed_camera_optical_frame</gz_frame_id>
+      <camera>
+        <horizontal_fov>1.919862</horizontal_fov>
+        <image>
+          <width>1280</width>
+          <height>720</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.2</near>
+          <far>20</far>
+        </clip>
+      </camera>
+    </sensor>
+
+    <!-- IMU Sensor -->
+    <sensor name="zed_imu_sensor" type="imu">
+      <always_on>true</always_on>
+      <update_rate>100</update_rate>
+      <visualize>false</visualize>
+      <topic>/zed/imu/data</topic>
+      <gz_frame_id>zed_camera_link</gz_frame_id>
+      <imu>
+        <angular_velocity>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></z>
+        </angular_velocity>
+        <linear_acceleration>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></z>
+        </linear_acceleration>
+      </imu>
+    </sensor>
+  </gazebo>
+
+  <!-- Materials for Gazebo Sim Rendering -->
+  <gazebo reference="chassis_link">
+    <visual><material><ambient>0.6 0.6 0.6 1</ambient><diffuse>0.75 0.75 0.75 1</diffuse><specular>0.8 0.8 0.8 1</specular></material></visual>
+  </gazebo>
+  <gazebo reference="left_rocker_link">
+    <visual><material><ambient>0.6 0.6 0.6 1</ambient><diffuse>0.75 0.75 0.75 1</diffuse><specular>0.8 0.8 0.8 1</specular></material></visual>
+  </gazebo>
+  <gazebo reference="right_rocker_link">
+    <visual><material><ambient>0.6 0.6 0.6 1</ambient><diffuse>0.75 0.75 0.75 1</diffuse><specular>0.8 0.8 0.8 1</specular></material></visual>
+  </gazebo>
+  <gazebo reference="left_bogie_link">
+    <visual><material><ambient>0.6 0.6 0.6 1</ambient><diffuse>0.75 0.75 0.75 1</diffuse><specular>0.8 0.8 0.8 1</specular></material></visual>
+  </gazebo>
+  <gazebo reference="right_bogie_link">
+    <visual><material><ambient>0.6 0.6 0.6 1</ambient><diffuse>0.75 0.75 0.75 1</diffuse><specular>0.8 0.8 0.8 1</specular></material></visual>
+  </gazebo>
+  <gazebo reference="back_left_wheel_link">
+    <visual><material><ambient>0.15 0.15 0.15 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse><specular>0.1 0.1 0.1 1</specular></material></visual>
+  </gazebo>
+  <gazebo reference="back_right_wheel_link">
+    <visual><material><ambient>0.15 0.15 0.15 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse><specular>0.1 0.1 0.1 1</specular></material></visual>
+  </gazebo>
+  <gazebo reference="front_left_wheel_link">
+    <visual><material><ambient>0.15 0.15 0.15 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse><specular>0.1 0.1 0.1 1</specular></material></visual>
+  </gazebo>
+  <gazebo reference="left_back_wheel_link">
+    <visual><material><ambient>0.15 0.15 0.15 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse><specular>0.1 0.1 0.1 1</specular></material></visual>
+  </gazebo>
+  <gazebo reference="middle_left_wheel_link">
+    <visual><material><ambient>0.15 0.15 0.15 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse><specular>0.1 0.1 0.1 1</specular></material></visual>
+  </gazebo>
+  <gazebo reference="middle_right_wheel_link">
+    <visual><material><ambient>0.15 0.15 0.15 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse><specular>0.1 0.1 0.1 1</specular></material></visual>
+  </gazebo>
+
+</robot>

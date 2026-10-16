@@ -1,0 +1,7 @@
+link_name, mass
+chassis_link, 10
+left_bogie_link, 5
+right_bogie_link, 5
+left_rocker_link, 4 
+right_rocker_link, 4
+wheel_link, 3

@@ -3,7 +3,7 @@
     <xacro:arg name="initial_positions_file" default="initial_positions.yaml" />
 
     <!-- Import rover_arm urdf file -->
-    <xacro:include filename="$(find rover_arm_description)/urdf/rover_arm_sim.xacro"/>  <!--- This is what moveit controls-->
+    <xacro:include filename="$(find rover_arm_description)/urdf/rover_arm_sim.xacro" />
 
     <!-- Import control_xacro -->
     <xacro:include filename="rover_arm.ros2_control.xacro" />

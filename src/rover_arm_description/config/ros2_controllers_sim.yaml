@@ -1,0 +1,54 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 1000 # Hz
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+arm_controller:
+  ros__parameters:
+    joints:
+      - base_link_joint
+      - shoulder_link_joint
+      - elbow_link_joint
+      - wrist_link_joint
+      - palm_link_joint
+      - left_finger_link_joint
+      - right_finger_link_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+
+    interpolation_method: splines
+    allow_partial_joints_goal: true
+
+# constraints:
+#       goal_time: 0.6 # seconds allowed to reach the final goal
+#       stopped_velocity_tolerance: 0.05 # rad/s to consider the arm "stopped"
+      
+#       base_link_joint:
+#         trajectory: 0.1 # max allowed tracking error (in radians) during motion
+#         goal: 0.02       # max allowed error at final destination
+#       shoulder_link_joint:
+#         trajectory: 0.1
+#         goal: 0.02
+#       elbow_link_joint:
+#         trajectory: 0.1
+#         goal: 0.02
+#       wrist_link_joint:
+#         trajectory: 0.1
+#         goal: 0.02
+#       palm_link_joint:
+#         trajectory: 0.1
+#         goal: 0.02
+#       left_finger_link_joint:
+#         trajectory: 0.2
+#         goal: 0.05
+#       right_finger_link_joint:
+#         trajectory: 0.2
+#         goal: 0.05

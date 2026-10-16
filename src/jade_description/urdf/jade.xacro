@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="jade">
+
+  <!-- 1. Include both sub-files using package paths -->
+  <xacro:include filename="$(find rover_description)/urdf/rover_raw.xacro" />
+  <xacro:include filename="$(find rover_arm_description)/urdf/rover_arm_raw.xacro" />
+
+  <!-- 2. Add a joint connecting a link from the body to the root link of the arm -->
+  <joint name="stand_link_joint" type="fixed">
+    <parent link="chassis_link" />     <!-- Link inside rover_body.xacro -->
+    <child link="stand_link" />     <!-- Link inside rover_arm.xacro -->
+    <origin xyz="0.15 0.0 0.0" rpy="0 0 0" />  <!-- Mounting position on chassis -->
+  </joint>
+
+</robot>

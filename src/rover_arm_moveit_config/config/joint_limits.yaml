@@ -10,36 +10,36 @@ default_acceleration_scaling_factor: 0.1
 joint_limits:
   base_link_joint:
     has_velocity_limits: true
-    max_velocity: 1.0
+    max_velocity: 3.0
     has_acceleration_limits: true
-    max_acceleration: 1.0
+    max_acceleration: 2.0
   elbow_link_joint:
     has_velocity_limits: true
-    max_velocity: 1.0
+    max_velocity: 2.0
     has_acceleration_limits: true
-    max_acceleration: 1.0
+    max_acceleration: 2.0
   left_finger_link_joint:
     has_velocity_limits: true
-    max_velocity: 1.0
+    max_velocity: 3.0
     has_acceleration_limits: true
-    max_acceleration: 1.0
+    max_acceleration: 2.0
   palm_link_joint:
     has_velocity_limits: true
-    max_velocity: 1.0
+    max_velocity: 3.0
     has_acceleration_limits: true
-    max_acceleration: 1.0
+    max_acceleration: 2.0
   right_finger_link_joint:
     has_velocity_limits: true
-    max_velocity: 1.0
+    max_velocity: 3.0
     has_acceleration_limits: true
-    max_acceleration: 1.0
+    max_acceleration: 2.0
   shoulder_link_joint:
     has_velocity_limits: true
-    max_velocity: 1.0
+    max_velocity: 3.0
     has_acceleration_limits: true
-    max_acceleration: 1.0
+    max_acceleration: 2.0
   wrist_link_joint:
     has_velocity_limits: true
-    max_velocity: 1.0
+    max_velocity: 3.0
     has_acceleration_limits: true
-    max_acceleration: 1.0
+    max_acceleration: 2.0

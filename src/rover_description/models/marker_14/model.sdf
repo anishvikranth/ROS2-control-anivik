@@ -1,0 +1,14 @@
+<?xml version="1.0" ?><sdf version="1.6">
+  <model name="Marker_14">
+    <static>true</static>
+    <link name="link">
+      <visual name="visual">
+        <geometry>
+          <mesh>
+            <uri>model://marker_14/meshes/Marker_14.dae</uri>
+          <scale>0.35 0.35 0.35</scale></mesh>
+        </geometry>
+      </visual>
+    </link>
+  </model>
+</sdf>

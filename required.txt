@@ -1,0 +1,4 @@
+source /opt/ros/jazzy/setup.bash
+export AMENT_PREFIX_PATH=/home/anivik/sim_repo_2/install/rover_aruco_interfaces:$AMENT_PREFIX_PATH
+export PYTHONPATH=/home/anivik/sim_repo_2/install/rover_aruco_interfaces/lib/python3.12/site-packages:$PYTHONPATH
+source ~/sim_repo_2/install/setup.bash

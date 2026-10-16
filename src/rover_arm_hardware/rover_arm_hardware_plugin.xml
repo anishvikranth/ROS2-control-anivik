@@ -1,0 +1,13 @@
+<library path="rover_arm_hardware">
+  <class
+    name="rover_arm_hardware/RoverArmHardware"
+    type="rover_arm_hardware::RoverArmHardware"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>
+      Bridges ros2_control velocity command/state interfaces for the rover
+      arm to the AVATAR serial bridge (arm_com_node) over ROS topics
+      (/arm_target_pwm out, /enc_angles in), closing the velocity control
+      loop in software since the firmware is open-loop PWM only.
+    </description>
+  </class>
+</library>

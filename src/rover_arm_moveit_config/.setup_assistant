@@ -1,13 +1,13 @@
 moveit_setup_assistant_config:
   urdf:
     package: rover_arm_description
-    relative_path: urdf/rover_arm.xacro
+    relative_path: urdf/rover_arm_sim.xacro
   srdf:
     relative_path: config/rover_arm.srdf
   package_settings:
     author_name: ""
     author_email: ""
-    generated_timestamp: 1783450260
+    generated_timestamp: 1783686046
   control_xacro:
     command:
       - position
