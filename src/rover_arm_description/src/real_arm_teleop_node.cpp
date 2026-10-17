@@ -1,4 +1,9 @@
 #include <rclcpp/rclcpp.hpp>
+#include <Eigen/Dense>
+#include <moveit/robot_model/robot_model.hpp>
+#include <moveit/robot_state/robot_state.hpp>
+#include <srdfdom/model.h>
+#include <urdf/model.h>
 #include <controller_manager_msgs/srv/switch_controller.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <sensor_msgs/msg/joy.hpp>
@@ -8,6 +13,7 @@
 #include <std_msgs/msg/string.hpp>
 #include <trajectory_msgs/msg/joint_trajectory.hpp>
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <unordered_map>
 #include <vector>
@@ -44,7 +50,7 @@
 // |--------------|-------------------------------------------------------------------|
 // (Toggles fire once per press; holding a button does not repeat.)
 // | button[0]    | Toggle Autonomous / Manual mode (Publish /arm_state)              |
-// | button[1]    | Toggle Joint-Space / Position-Space (Publish /input_space)        |
+// | button[1]    | Toggle Joint-Space / Task-Space jogging (Publish /input_space)    |
 // | button[2]    | Toggle Joystick-only (open-loop velocity) mode  [param]           |
 // | button[6]    | Step Down k_level (Decrease Sensitivity / Speed)                  |
 // | button[7]    | Step Up k_level (Increase Sensitivity / Speed)                    |
@@ -55,6 +61,15 @@
 // | RB (5) + A / B   | Gripper open / closed (SRDF gripper states)                          |
 // Any arm stick cancels a pose move; the gripper stick cancels a gripper preset.
 // Pose values come from the SRDF (passed in by arm_real.launch.py).
+//
+// --- TASK-SPACE JOGGING (button B in MANUAL mode) -- sticks move the GRIPPER, not joints ---
+// | axes[1] left stick up/down    | gripper forward / back (along the arm's heading)   |
+// | axes[0] left stick left/right | gripper left / right                               |
+// | axes[4] right stick up/down   | gripper up / down                                  |
+// | axes[7] d-pad up/down         | gripper pitch (tilt up / down)                     |
+// | axes[6] d-pad left/right      | gripper roll                                       |
+// Directions not being commanded are held, e.g. pushing forward keeps the gripper level.
+// The 5-joint arm can't yaw the gripper independently, so yaw is not controlled.
 
 // Highest axis/button index this node reads. Used to bounds-check incoming
 // /joy_arm messages before touching them -- see joy_callback. Bump these if
@@ -84,6 +99,15 @@ public:
         this->declare_parameter<std::vector<double>>("gripper_closed", std::vector<double>{});
         this->declare_parameter<double>("pose_speed", 0.3);     // rad/s of the joint that moves most
         this->declare_parameter<double>("gripper_speed", 0.5);  // rad/s
+        // Task-space jogging. robot_description(_semantic) come from the launch file.
+        this->declare_parameter<std::string>("robot_description", "");
+        this->declare_parameter<std::string>("robot_description_semantic", "");
+        this->declare_parameter<std::vector<double>>("tool_offset", {0.0, 0.17, 0.0});  // tool point in palm frame (m)
+        this->declare_parameter<std::vector<double>>("task_linear_levels", {0.02, 0.05, 0.10});   // m/s per speed tier
+        this->declare_parameter<std::vector<double>>("task_angular_levels", {0.10, 0.25, 0.50});  // rad/s per tier
+        this->declare_parameter<double>("task_min_z", -1.0e9);  // keep the tool point above this height (world z)
+        this->declare_parameter<double>("task_damping", 0.03);  // damped least squares: larger = calmer near singularities
+        this->declare_parameter<std::vector<double>>("task_max_joint_speed", {1.0, 1.0, 1.0, 0.5, 0.5});  // rad/s
         time_from_start_s_ = this->get_parameter("time_from_start_s").as_double();
         cooldown_s_ = this->get_parameter("cooldown_s").as_double();
         joystick_only_button_idx_ =
@@ -165,6 +189,7 @@ public:
             velocity_levels = {0.1, 0.25, 0.5};
         }
         k_index = 0;
+        init_kinematics();  // after k_levels (its tier lists must match their size)
 
         last_state_toggle_time = this->now();
         last_space_toggle_time = this->now();
@@ -241,6 +266,17 @@ private:
     bool gripper_move_active_ = false;
     rclcpp::Time gripper_move_end_{0, 0, RCL_ROS_TIME};
     static constexpr double kStickCancel = 0.1;  // |axis| that cancels a pose / gripper move
+
+    // Task-space jogging
+    moveit::core::RobotModelPtr robot_model_;
+    std::unique_ptr<moveit::core::RobotState> kin_state_;
+    const moveit::core::JointModelGroup * arm_jmg_ = nullptr;
+    const moveit::core::LinkModel * palm_link_ = nullptr;
+    Eigen::Vector3d tool_offset_{0.0, 0.17, 0.0};
+    std::vector<double> task_linear_levels_, task_angular_levels_, task_max_joint_speed_;
+    double task_min_z_ = -1.0e9;
+    double task_damping_ = 0.03;
+    rclcpp::Time last_task_time_{0, 0, RCL_ROS_TIME};
     bool joy_lost_ = false;           // edge-triggered "joystick lost" logging
     rclcpp::Time last_joy_lost_log_{0, 0, RCL_ROS_TIME};
     bool joint_states_seen_ = false;
@@ -261,6 +297,8 @@ private:
     void joint_state_callback(const sensor_msgs::msg::JointState::SharedPtr msg);
     void velocity_timer_callback();
     void load_poses();
+    void init_kinematics();
+    void task_space_step(const sensor_msgs::msg::Joy & msg, const rclcpp::Time & now);
     bool start_pose_move(const std::string & name, const rclcpp::Time & now);
     void start_gripper_move(const std::vector<double> & target, const char * label, const rclcpp::Time & now);
     void print_current_pose();
@@ -559,6 +597,125 @@ void RealArmTeleopNode::print_current_pose() {
     RCLCPP_INFO(this->get_logger(), "%s", block.c_str());
 }
 
+void RealArmTeleopNode::init_kinematics() {
+    const auto urdf_xml = this->get_parameter("robot_description").as_string();
+    const auto srdf_xml = this->get_parameter("robot_description_semantic").as_string();
+    auto vec = [this](const char * name) { return this->get_parameter(name).as_double_array(); };
+    task_linear_levels_ = vec("task_linear_levels");
+    task_angular_levels_ = vec("task_angular_levels");
+    task_max_joint_speed_ = vec("task_max_joint_speed");
+    task_min_z_ = this->get_parameter("task_min_z").as_double();
+    task_damping_ = this->get_parameter("task_damping").as_double();
+    const auto off = vec("tool_offset");
+    if (off.size() == 3) tool_offset_ = Eigen::Vector3d(off[0], off[1], off[2]);
+    if (task_linear_levels_.size() != k_levels.size() || task_angular_levels_.size() != k_levels.size() ||
+        task_max_joint_speed_.size() != kArmJoints) {
+        RCLCPP_WARN(this->get_logger(), "task_* parameter sizes are wrong -- using defaults.");
+        task_linear_levels_ = {0.02, 0.05, 0.10};
+        task_angular_levels_ = {0.10, 0.25, 0.50};
+        task_max_joint_speed_ = {1.0, 1.0, 1.0, 0.5, 0.5};
+    }
+    if (urdf_xml.empty() || srdf_xml.empty()) {
+        RCLCPP_WARN(this->get_logger(), "No robot_description(_semantic) parameter -- task-space jogging disabled.");
+        return;
+    }
+    auto urdf_model = std::make_shared<urdf::Model>();
+    auto srdf_model = std::make_shared<srdf::Model>();
+    if (!urdf_model->initString(urdf_xml) || !srdf_model->initString(*urdf_model, srdf_xml)) {
+        RCLCPP_WARN(this->get_logger(), "Could not parse the URDF/SRDF -- task-space jogging disabled.");
+        return;
+    }
+    robot_model_ = std::make_shared<moveit::core::RobotModel>(urdf_model, srdf_model);
+    arm_jmg_ = robot_model_->getJointModelGroup("arm");
+    palm_link_ = robot_model_->getLinkModel("palm_link");
+    if (!arm_jmg_ || !palm_link_ || arm_jmg_->getVariableCount() != kArmJoints) {
+        RCLCPP_WARN(this->get_logger(), "SRDF has no 5-joint 'arm' group / palm_link -- task-space jogging disabled.");
+        arm_jmg_ = nullptr;
+        return;
+    }
+    kin_state_ = std::make_unique<moveit::core::RobotState>(robot_model_);
+    kin_state_->setToDefaultValues();
+    RCLCPP_INFO(this->get_logger(), "Task-space jogging ready (button B). Tool point %.2f m ahead of the palm.",
+                tool_offset_.norm());
+}
+
+// One joystick step of task-space jogging: stick command (forward, left, up, pitch,
+// roll) -> joint velocities through the 5x5 task Jacobian -> new joint targets.
+void RealArmTeleopNode::task_space_step(const sensor_msgs::msg::Joy & msg, const rclcpp::Time & now) {
+    const double dt = std::clamp((now - last_task_time_).seconds(), 0.0, 0.1);
+    last_task_time_ = now;
+    if (dt <= 0.0) return;
+
+    const double lin = task_linear_levels_[k_index];
+    const double ang = task_angular_levels_[k_index];
+    double fwd_cmd = msg.axes[1], left_cmd = msg.axes[0], up_cmd = msg.axes[4];
+    const double pitch_cmd = msg.axes[7], roll_cmd = msg.axes[6];
+    if (std::abs(fwd_cmd) + std::abs(left_cmd) + std::abs(up_cmd) + std::abs(pitch_cmd) + std::abs(roll_cmd) < 1e-3) {
+        return;  // sticks centred: hold
+    }
+
+    Eigen::VectorXd q(kArmJoints);
+    for (size_t i = 0; i < kArmJoints; ++i) q[i] = joint_positions[i];
+    kin_state_->setJointGroupPositions(arm_jmg_, q);
+    kin_state_->update();
+    Eigen::MatrixXd jac;  // 6 x 5: linear xyz, angular xyz, in the world frame
+    if (!kin_state_->getJacobian(arm_jmg_, palm_link_, tool_offset_, jac)) {
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "Jacobian failed -- task-space step skipped.");
+        return;
+    }
+    const Eigen::Isometry3d & palm = kin_state_->getGlobalLinkTransform(palm_link_);
+    const Eigen::Vector3d tool = palm * tool_offset_;
+
+    // Directions: "forward" follows the arm's heading (base joint), up is world up.
+    const double th = q[0];
+    const Eigen::Vector3d fwd(std::sin(th), -std::cos(th), 0.0);
+    const Eigen::Vector3d up(0.0, 0.0, 1.0);
+    const Eigen::Vector3d left = up.cross(fwd);
+    const Eigen::Vector3d tool_axis = palm.rotation().col(1);  // palm +y = approach / roll axis
+
+    // Floor: no further downward motion once the tool point reaches task_min_z.
+    if (tool.z() <= task_min_z_ && up_cmd < 0.0) {
+        up_cmd = 0.0;
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+                             "Task space: tool at the floor limit (z = %.2f m) -- down blocked.", tool.z());
+    }
+
+    Eigen::Matrix<double, 5, 5> jt;
+    jt.row(0) = fwd.transpose() * jac.topRows(3);
+    jt.row(1) = left.transpose() * jac.topRows(3);
+    jt.row(2) = up.transpose() * jac.topRows(3);
+    jt.row(3) = -left.transpose() * jac.bottomRows(3);   // pitch up = nose up
+    jt.row(4) = tool_axis.transpose() * jac.bottomRows(3);
+    Eigen::Matrix<double, 5, 1> v;
+    v << fwd_cmd * lin, left_cmd * lin, up_cmd * lin, pitch_cmd * ang, roll_cmd * ang;
+
+    // Damped least squares: exact away from singularities, slows down near them.
+    const Eigen::Matrix<double, 5, 5> jjt =
+        jt * jt.transpose() + task_damping_ * task_damping_ * Eigen::Matrix<double, 5, 5>::Identity();
+    Eigen::Matrix<double, 5, 1> qdot = jt.transpose() * jjt.ldlt().solve(v);
+
+    // Near a singularity (e.g. arm stretched straight) part of the command can't be
+    // done, and damped least squares then moves the gripper in a direction that wasn't
+    // asked for. Measure how much of the command is achievable and slow down by the rest.
+    const double off = (jt * qdot - v).norm() / std::max(v.norm(), 1e-9);
+    if (off > 0.3) {
+        qdot *= std::max(0.0, 1.0 - off);
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1500,
+                             "Task space: can't move that way from here (arm stretched or at a limit) -- motion reduced.");
+    }
+
+    // Respect joint speed limits by scaling the whole step (keeps the direction).
+    double scale = 1.0;
+    for (size_t i = 0; i < kArmJoints; ++i) {
+        if (std::abs(qdot[i]) > task_max_joint_speed_[i]) scale = std::min(scale, task_max_joint_speed_[i] / std::abs(qdot[i]));
+    }
+    if (scale < 0.5) {
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                             "Task space: near a singularity / joint speed limit -- motion slowed to %.0f%%.", scale * 100.0);
+    }
+    for (size_t i = 0; i < kArmJoints; ++i) joint_positions[i] += scale * qdot[i] * dt;
+}
+
 void RealArmTeleopNode::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg) {
     // Guard against malformed/short Joy messages -- msg->axes[...] and
     // msg->buttons[...] below use operator[], which does NOT bounds-check.
@@ -651,11 +808,17 @@ void RealArmTeleopNode::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     // INPUT SPACE TOGGLE (button B), debounced. Published for parity/future use.
     if (space_pressed &&
         (now - last_space_toggle_time).seconds() > cooldown_s_) {
-        input_space_ = !input_space_;
         last_space_toggle_time = now;
+        if (!input_space_ && !arm_jmg_) {
+            RCLCPP_WARN(this->get_logger(), "Task-space jogging unavailable (no robot model) -- staying in JOINT SPACE.");
+        } else {
+            input_space_ = !input_space_;
+            last_task_time_ = now;
+            need_resync_ = true;  // start the jog from where the arm really is
+        }
 
         RCLCPP_INFO(this->get_logger(), "Switched Input Space to: %s",
-                    input_space_ ? "POSITION SPACE (Task Space)" : "JOINT SPACE");
+                    input_space_ ? "TASK SPACE (sticks move the gripper)" : "JOINT SPACE (sticks move joints)");
     }
     std_msgs::msg::Bool space_msg;
     space_msg.data = input_space_;
@@ -754,7 +917,9 @@ void RealArmTeleopNode::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     const double k = k_levels[k_index];
 
     // Joint-space motion -- same axis mapping as sim_control_node.cpp
-    if (!pose_move_active_) {
+    if (!pose_move_active_ && input_space_ && arm_jmg_) {
+        task_space_step(*msg, now);
+    } else if (!pose_move_active_) {
         joint_positions[0] += k * msg->axes[0];     // Base
         joint_positions[1] += k * msg->axes[1];     // Shoulder
         joint_positions[2] += k * msg->axes[4];     // Elbow

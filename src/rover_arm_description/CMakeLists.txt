@@ -8,6 +8,10 @@ find_package(sensor_msgs REQUIRED)
 find_package(trajectory_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(controller_manager_msgs REQUIRED)
+find_package(moveit_core REQUIRED)
+find_package(urdf REQUIRED)
+find_package(srdfdom REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 find_package(geometry_msgs REQUIRED)
 find_package(moveit_msgs REQUIRED)
@@ -41,6 +45,10 @@ ament_target_dependencies(
   trajectory_msgs
   std_msgs
   controller_manager_msgs
+  moveit_core
+  urdf
+  srdfdom
+  Eigen3
 )
 
 

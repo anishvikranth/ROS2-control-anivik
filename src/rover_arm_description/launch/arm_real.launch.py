@@ -126,6 +126,14 @@ def launch_setup(context):
                 "cooldown_s": LaunchConfiguration("cooldown_s"),
                 "start_joystick_only": open_loop,
                 **srdf_poses(moveit_config.robot_description_semantic["robot_description_semantic"]),
+                # Robot model for task-space jogging (button B).
+                **moveit_config.robot_description,
+                **moveit_config.robot_description_semantic,
+                # Task-space jogging keeps the tool point 8 cm above the collision floor (the
+                # fingertips reach a few cm past the tool point).
+                "task_min_z": (float(LaunchConfiguration("collision_floor_z").perform(context)) + 0.08
+                               if LaunchConfiguration("collision_floor_z").perform(context).strip() not in ("", "none")
+                               else -1.0e9),
             }
         ],
     )

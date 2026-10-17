@@ -159,7 +159,7 @@ active at a time; the teleop node switches them through the controller manager.
 | `axes[7]` / `axes[6]` | Wrist pitch / palm roll |
 | `axes[3]` | Gripper open / close |
 | `button[0]` | Toggle MANUAL ↔ AUTONOMOUS |
-| `button[1]` | Toggle joint space ↔ position space (published on `/input_space`, not acted on yet) |
+| `button[1]` (B) | Toggle **joint space** ↔ **task space** (sticks move the gripper, see below) |
 | `button[2]` | Toggle MANUAL ↔ JOYSTICK_ONLY (param `joystick_only_button_idx`) |
 | `button[6]` / `button[7]` | Speed tier down / up (position step 0.005/0.01/0.02 rad, velocity 0.1/0.25/0.5 rad/s) |
 
@@ -169,6 +169,39 @@ active at a time; the teleop node switches them through the controller manager.
 
 Mode buttons toggle once per press; holding a button does not repeat. While LB or RB is
 held, A/B/X/Y/Start do **not** do their normal job.
+
+### Task-space jogging (button B)
+
+In MANUAL mode, **B** switches the sticks from moving joints to moving the **gripper**:
+
+| Input | Gripper moves |
+|---|---|
+| left stick up / down | forward / back (along the direction the arm points) |
+| left stick left / right | left / right |
+| right stick up / down | up / down |
+| d-pad up / down | pitch (tilt up / down) |
+| d-pad left / right | roll |
+
+Directions you are not commanding are held: pushing forward slides the gripper straight
+forward and keeps it level -- what you want for pressing buttons, pulling drawers or
+inserting the plug. The speed tier buttons set the speed (0.02 / 0.05 / 0.1 m/s and
+0.1 / 0.25 / 0.5 rad/s). Press **B** again for joint mode. Named poses (LB) and the gripper
+(RB) work in both modes.
+
+Things to know:
+- The arm has 5 joints, so it can control position + pitch + roll but **not yaw** -- the
+  gripper can't turn left/right on its own (the whole arm swings with the base).
+- Near the edge of its reach (arm stretched straight) or at a joint limit, some directions
+  are impossible. The arm then slows down and the terminal says *"can't move that way from
+  here"* instead of drifting somewhere you didn't ask for. Start from a bent-elbow pose
+  (e.g. `ground_pick` or `panel_ready`), not the straight-out zero pose.
+- With `collision_floor_z` set (the sim does), the gripper stops 8 cm above that floor.
+- Needs closed loop (encoders); not available in JOYSTICK_ONLY mode.
+- Implementation: the 6x5 Jacobian at the tool point (`tool_offset`, 0.17 m ahead of the
+  palm) is projected onto the 5 controllable directions and solved with damped least squares,
+  scaled to the joint speed limits. Tuning parameters (`task_linear_levels`,
+  `task_angular_levels`, `task_damping`, `task_max_joint_speed`, `tool_offset`) are on
+  `real_arm_teleop_node`.
 
 ### Named poses and the gripper
 
