@@ -22,8 +22,9 @@ hardware layer underneath changes.
 
 - **Three control modes** -- MANUAL (joystick moves joint targets), JOYSTICK_ONLY (velocity,
   works without encoders) and AUTONOMOUS (MoveIt) -- switchable from the joystick.
-- **Task-space jogging** -- button B makes the sticks move the gripper in straight lines
-  (forward/left/up/pitch/roll) instead of individual joints.
+- **Switching between joint space control and position space control** -- button B toggles
+  between moving individual joints and moving the gripper in straight lines
+  (forward/left/up/pitch/roll).
 - **Named poses** -- LB + A/B/X/Y sends the arm to stow / panel_ready / cache_drop /
   ground_pick; LB + Start records new ones. **Gripper presets** on RB + A/B with a
   force-limited squeeze.
