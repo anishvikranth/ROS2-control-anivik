@@ -172,18 +172,63 @@ held, A/B/X/Y/Start do **not** do their normal job.
 
 ### Named poses and the gripper
 
-The poses live in `rover_arm_moveit_config/config/rover_arm.srdf` (`group_state`), shared by
-MoveIt (RViz goal list) and the joystick. A pose move goes straight there in joint space,
-the joint with furthest to go at `pose_speed` (0.3 rad/s); **any arm stick cancels it**. The
-starting values come from forward kinematics -- `cache_drop` in particular is a placeholder.
-To set a real pose: drive the arm there, press **LB + Start**, paste the printed block into
-the SRDF and rename it (no rebuild needed with `--symlink-install`; restart the launch).
+The arm can jump to saved poses and the gripper can open/close with one button combo.
 
-The fingers have their own `gripper_controller`, so MoveIt can command the `arm` and
-`gripper` groups separately. Closing on an object stalls the gripper motor by design, so:
-the gripper is exempt from the STALL fault, its PWM is capped at `gripper_pwm_limit`
-(this sets the grip force), and `gripper_controller` has no tolerances, so it keeps
-squeezing instead of giving up when the fingers stop short.
+**1. Start the arm** (sim or real) and check the terminal shows:
+
+```
+Named poses: LB+A=stow, LB+B=panel_ready, LB+X=cache_drop, LB+Y=ground_pick. Gripper presets: RB+A=open, RB+B=closed.
+```
+
+**2. Be in MANUAL mode** -- the normal joystick mode at startup. Not AUTONOMOUS (press A
+again to leave it) and not JOYSTICK_ONLY (press button 2 again). The terminal warns if you
+try a pose in the wrong mode.
+
+**3. Move to a pose: hold LB, tap a face button.**
+
+| Hold LB + | Pose | Use |
+|---|---|---|
+| A | `stow` | folded up, for driving |
+| B | `panel_ready` | forward and raised, for the IDMO panel |
+| X | `cache_drop` | to the side -- **placeholder**, record your own (step 5) |
+| Y | `ground_pick` | forward, pointing down, for picking up objects |
+
+The arm moves smoothly in joint space (the joint with furthest to go at `pose_speed`,
+0.3 rad/s) and the terminal prints `Moving to pose ...` / `Reached pose ...`.
+**Touch any arm stick to cancel** -- the arm stops where it is and normal joystick control
+continues. While LB is held, A/B/X/Y only select poses, so you can't switch mode by accident.
+
+**4. Gripper: hold RB, tap A (open) or B (close).** The gripper stick cancels. Closing on
+an object keeps squeezing with a capped force (see below), so it neither drops the object
+nor burns the motor.
+
+**5. Save your own poses.** The shipped values are starting guesses from forward kinematics.
+1. Drive the arm with the joystick to exactly the pose you want.
+2. Hold **LB** and tap **Start**. The terminal prints a ready-made block:
+   ```
+   <group_state name="NEW_POSE" group="arm">
+       <joint name="base_link_joint" value="1.234"/>
+       ...
+   </group_state>
+   ```
+3. In `src/rover_arm_moveit_config/config/rover_arm.srdf`, replace the numbers of the pose
+   you want to change (e.g. `cache_drop`) with the printed ones, keeping its name.
+4. Restart the launch (no rebuild needed with `--symlink-install`).
+
+The same poses appear in RViz's MotionPlanning goal list, so MoveIt can use them in
+AUTONOMOUS mode too -- the SRDF is the single place they are defined.
+
+**If a combo does nothing**, your controller may number its buttons differently (the
+defaults assume an Xbox-style pad: LB = 4, RB = 5, Start = 7). Check with
+`ros2 topic echo /joy_arm` while pressing the button, then set the teleop node's
+`pose_modifier_button`, `gripper_modifier_button` and `pose_record_button` parameters.
+
+**How the gripper works underneath.** The fingers have their own `gripper_controller`, so
+MoveIt can command the `arm` and `gripper` groups separately. Closing on an object stalls
+the gripper motor by design, so: the gripper is exempt from the STALL fault, its PWM is
+capped at `gripper_pwm_limit` (180 by default -- this sets the grip force), and
+`gripper_controller` has no tolerances, so it keeps squeezing instead of giving up when the
+fingers stop short of the target.
 
 ### Safety behaviour
 
