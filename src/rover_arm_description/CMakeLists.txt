@@ -75,6 +75,7 @@ install(
 install(
   PROGRAMS
     scripts/virtual_esp.py
+    scripts/arm_bringup.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

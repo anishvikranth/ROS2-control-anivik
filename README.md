@@ -86,6 +86,7 @@ real arm.
 | `pwm_deadband` | `30` | `RoverArmHardware` deadband compensation |
 | `ff_gain` | `255` | `RoverArmHardware` feed-forward (the virtual motors reach 1 rad/s at full PWM) |
 | `spawn_cube` | `true` | Target cube in front of the arm |
+| `real_stack` | `true` | `false` = Gazebo + virtual ESP only (to practise with `arm_bringup.py`) |
 
 Failure drills while it runs:
 
@@ -237,14 +238,44 @@ lasts (e.g. `ENCODERS UNPLUGGED ... setting PWM = 0`, `ENCODERS RECONNECTED`,
 
 Do this with the arm lifted and the kill switch in reach.
 
-1. Start in open loop (`open_loop_joints:=all`) on the slowest speed tier.
-2. For each motor: positive command turns the joint in the URDF-positive direction
-   (`dir_dir[]` in `arm.c`), and `/enc_angles` **increases** (`enc_dir[]` in `arm.c`).
-3. Moving wrist pitch only makes both bevel angles change by the same amount with the
-   same sign; roll only makes them change with opposite signs.
-4. Find the PWM below which motors don't move (set `pwm_deadband`) and tune `ff_gain`.
-5. Check for lost encoder counts: move a joint fast, return it slowly, compare angles.
-6. Only then switch to closed loop with low gains and tune `kp`/`ki`, then the JTC gains.
+1. Flash `arm.c`, start **only** `arm.py` (not `arm_real.launch.py`), with the arm in its
+   URDF zero pose.
+2. Run the bring-up tool (below). It checks encoder data, motor/encoder directions, the
+   differential wrist, and measures deadband and speed.
+3. Apply what it reports: fix `enc_dir[]` / `dir_dir[]` in `arm.c` and re-flash; re-run the
+   tool until everything is OK.
+4. Check for lost encoder counts: move a joint fast, return it slowly, compare angles.
+5. Start `arm_real.launch.py open_loop_joints:=all pwm_deadband:=<value> ff_gain:=<value>`
+   on the slowest speed tier and drive each joint.
+6. Only then run closed loop (`arm_real.launch.py pwm_deadband:=... ff_gain:=...`) and tune
+   `kp`/`ki`, then the JTC gains.
+
+### Bring-up tool
+
+```bash
+# with only arm.py running (or: arm_real_sim.launch.py real_stack:=false to practise)
+ros2 run rover_arm_description arm_bringup.py                      # interactive, all motors
+ros2 run rover_arm_description arm_bringup.py --motors base,elbow   # subset
+ros2 run rover_arm_description arm_bringup.py --yes                 # no questions
+```
+
+It talks straight to `arm.py` (PWM on `/arm_target_angles`, angles on `/enc_angles`), so it
+doesn't depend on any `RoverArmHardware` setting, and refuses to run if anything else is
+publishing PWM. For each motor it:
+
+- ramps PWM slowly in both directions until the encoder moves -> **deadband**, and whether
+  the encoder counts the same way as the PWM (interactively it also asks whether the joint
+  moved in the URDF-positive direction, which separates a reversed motor from a reversed encoder);
+- measures speed at two PWM levels -> fitted **deadband** and top speed -> **`ff_gain`**;
+- for the wrist, drives both bevels together (pitch) and opposite (roll) and checks both
+  encoders respond as expected.
+
+It ends with a summary -- a ready-to-paste `enc_dir[]` line if any encoder is reversed,
+suggested `pwm_deadband` / `ff_gain`, and the launch command to try -- and saves a report to
+`~/arm_bringup_reports/`.
+
+Safety: PWM capped at `--max-pwm` (120), every move stops after `--max-travel-deg` (10 deg)
+and is reversed, interactive mode asks before each motor, Ctrl-C sends 0 PWM.
 
 ## AVATAR files
 

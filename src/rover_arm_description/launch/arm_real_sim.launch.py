@@ -42,6 +42,9 @@ def generate_launch_description():
                               description='Start joy_node, publishing the joystick on /joy_arm'),
         DeclareLaunchArgument('spawn_cube', default_value='true', description='Spawn the target cube'),
         DeclareLaunchArgument('rviz', default_value='true', description='Start MoveIt RViz'),
+        DeclareLaunchArgument('real_stack', default_value='true',
+                              description='Start arm_real.launch.py. false = Gazebo + virtual ESP only '
+                              '(e.g. to run arm_bringup.py, which needs nothing else driving PWM)'),
         DeclareLaunchArgument('motor_deadband', default_value='30.0',
                               description='Virtual motors: PWM below which they do not move'),
         DeclareLaunchArgument('pwm_deadband', default_value='30.0',
@@ -129,8 +132,10 @@ def generate_launch_description():
     # Start it only once Gazebo's motors exist, so RoverArmHardware's startup
     # wait for /enc_angles sees real Gazebo encoder data. The spawner exits either
     # way, so check that it succeeded.
-    def on_motor_spawner_exit(event, _context):
+    def on_motor_spawner_exit(event, context):
         if event.returncode == 0:
+            if LaunchConfiguration('real_stack').perform(context) != 'true':
+                return [LogInfo(msg='Gazebo + virtual ESP ready (real_stack:=false).')]
             return [real_stack]
         return [LogInfo(msg='ERROR: Gazebo motor_velocity_controller failed to start -- NOT starting '
                             'the real-arm stack. Restart arm_real_sim.launch.py.')]
