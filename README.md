@@ -1,30 +1,82 @@
 # Rover Arm – ROS 2 Control, MoveIt & Simulation
 
-ROS 2 (Jazzy) workspace for Team Anveshak's rover arm: the robot description, Gazebo
-simulation, MoveIt configuration, and a `ros2_control` hardware plugin that drives the
-real arm through the AVATAR serial link to the ESP32.
+ROS 2 (Jazzy) workspace for Team Anveshak's rover arm (IRC 2027): robot description,
+Gazebo simulation, MoveIt configuration, and a `ros2_control` hardware plugin that drives
+the real arm through the AVATAR serial link to the ESP32.
 
 The same controllers and MoveIt setup run in simulation and on the real arm; only the
 hardware layer underneath changes.
 
 ```
- Joystick (/joy_arm) ──► real_arm_teleop_node ──┐
-                                                ├──► arm_controller (JTC) ─────────┐
- MoveIt (move_group) ───────────────────────────┘    or joystick_only_controller ─┤
-                                                                                  ▼
-                              Gazebo (gz_ros2_control)   or   RoverArmHardware plugin
-                                                                  │  /arm_target_angles (PWM)
-                                                                  ▼        ▲ /enc_angles (deg)
-                                                               arm.py  ◄──► ESP32 (arm.c)
+ Joystick (/joy_arm) ──► real_arm_teleop_node ──┐   arm_controller + gripper_controller (JTC)
+                                                ├──► or joystick_only_controller (velocity)
+ MoveIt (move_group) ───────────────────────────┘              │
+                                                               ▼
+                         Gazebo (gz_ros2_control)   or   RoverArmHardware plugin
+                         or virtual_esp.py (sim)               │ /arm_target_angles (PWM)
+                                                               ▼        ▲ /enc_angles (deg)
+                                                            arm.py ◄──► ESP32 (arm.c)
 ```
+
+## What it can do
+
+- **Three control modes** -- MANUAL (joystick moves joint targets), JOYSTICK_ONLY (velocity,
+  works without encoders) and AUTONOMOUS (MoveIt) -- switchable from the joystick.
+- **Task-space jogging** -- button B makes the sticks move the gripper in straight lines
+  (forward/left/up/pitch/roll) instead of individual joints.
+- **Named poses** -- LB + A/B/X/Y sends the arm to stow / panel_ready / cache_drop /
+  ground_pick; LB + Start records new ones. **Gripper presets** on RB + A/B with a
+  force-limited squeeze.
+- **Safety** -- encoder and joystick watchdogs, RUNAWAY / STALL / JUMP / REBOOT fault
+  detection, trajectory tolerances, ESP32 command watchdog, every event logged.
+- **Open-loop fallback** -- drive any joint without its encoder (`open_loop_joints:=...`).
+- **Real-arm stack in simulation** -- the exact real software against Gazebo through a
+  virtual ESP32, with failure drills.
+- **Bring-up tool** -- `arm_bringup.py` checks motor/encoder directions and the wrist,
+  and measures deadband and speed on power-on day.
+
+## Quick start
+
+```bash
+# build
+source /opt/ros/jazzy/setup.bash && colcon build --symlink-install && source install/setup.bash
+
+# drive the real-arm software in simulation (Gazebo + RViz, joystick on /joy_arm)
+ros2 launch rover_arm_description arm_real_sim.launch.py
+
+# the real arm (ESP32 flashed with avatar_files/arm.c, arm.py available in ~/AVATAR)
+ros2 launch rover_arm_description arm_real.launch.py
+```
+
+First time on real hardware? Follow the [First power-on checklist](#first-power-on-checklist).
+
+## Contents
+
+- [Repository layout](#repository-layout) · [Build](#build) · [Simulation](#simulation) ·
+  [Real-arm stack in simulation](#real-arm-stack-in-simulation)
+- Real arm: [Bring-up](#bring-up) · [Control modes](#control-modes) ·
+  [Joystick mapping](#joystick-mapping-joy_arm) · [Task-space jogging](#task-space-jogging-button-b) ·
+  [Named poses and the gripper](#named-poses-and-the-gripper) · [Safety behaviour](#safety-behaviour) ·
+  [Hardware parameters](#hardware-parameters-rover_arm_realxacro) · [Topics](#topics) · [Logs](#logs)
+- Power-on: [First power-on checklist](#first-power-on-checklist) · [Bring-up tool](#bring-up-tool)
+- [AVATAR files](#avatar-files) · [Known issues](#known-issues) · [URDF](#urdf) ·
+  [Editing the URDF](#editing-the-urdf)
 
 ## Repository layout
 
 | Path | What it is |
 |---|---|
-| `src/rover_arm_description` | Arm URDFs (`rover_arm_raw/sim/real.xacro`), meshes, controller configs, launch files, teleop and MoveIt test nodes |
+| `src/rover_arm_description` | Arm URDFs (`rover_arm_raw/sim/real.xacro`), meshes, controller configs, launch files and nodes (below) |
+| `  launch/arm_real.launch.py` | Real arm: `RoverArmHardware`, controllers, teleop, MoveIt, RViz, `arm.py` |
+| `  launch/arm_real_sim.launch.py` | Same stack against Gazebo via `virtual_esp.py` |
+| `  launch/gazebo.launch.py`, `arm.launch.py` | Quick Gazebo sim (position control), optionally with MoveIt |
+| `  src/real_arm_teleop_node.cpp` | Joystick teleop: modes, task-space jogging, named poses, gripper presets |
+| `  scripts/virtual_esp.py` | Simulated ESP32 + motors for `arm_real_sim` (with failure drills) |
+| `  scripts/arm_bringup.py` | Power-on check tool |
+| `  scripts/planning_scene_setup.py` | Adds a collision floor to MoveIt's planning scene |
+| `  config/ros2_controllers_real.yaml` | Real-arm controllers, gains, tolerances |
 | `src/rover_arm_hardware` | `ros2_control` SystemInterface plugin for the real arm (`RoverArmHardware`) |
-| `src/rover_arm_moveit_config` | MoveIt config (SRDF, kinematics, joint limits, move_group/RViz launches) |
+| `src/rover_arm_moveit_config` | MoveIt config: SRDF (groups, **named poses**), kinematics, joint limits, RViz config |
 | `src/rover_description` | Full rover (rocker-bogie) description and Gazebo world with ArUco markers |
 | `src/jade_description` | Rover + arm description (work in progress) |
 | `src/rover_aruco`, `src/rover_aruco_interfaces` | ArUco detection, marker tracking and navigation-goal generation |
@@ -420,6 +472,8 @@ ones used in the Arduino IDE.
 
 ## Known issues
 
+- `gazebo.launch.py` / `arm.launch.py` (quick position-control sim) were updated for the
+  separate gripper controller but not re-tested since; `arm_real_sim.launch.py` is tested.
 - KDL IK often fails for pose goals on this 5-DOF arm; consider `pick_ik` or position-only IK.
 - MoveIt only knows the arm (and, in sim, the floor). Until the arm is on the rover model, nothing stops it planning through the rover body.
 - The three arm xacros are copies of each other and have drifted (e.g. joint limits in `rover_arm_raw.xacro`).
