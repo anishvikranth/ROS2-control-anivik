@@ -248,13 +248,16 @@
       <plugin>rover_arm_hardware/RoverArmHardware</plugin>
       <xacro:property name="serial_port" value="/dev/ttyACM0"/>
       <xacro:property name="baud_rate" value="115200"/>
-      <param name="serial_port">${serial_port}</param>      <!--- If by any chance the port changes we can edit here-->
+      <param name="serial_port">${serial_port}</param>      <!-- NOT used by RoverArmHardware: the port is set with arm_real.launch.py serial_port:=... -->
       <param name="baud_rate">${baud_rate}</param>
       <param name="kp">40.0</param>
       <param name="ki">5.0</param>
       <param name="pwm_limit">255.0</param>
       <!-- Open loop: PWM = ff_gain * motor velocity (rad/s). Tune on the bench. -->
       <param name="ff_gain">100.0</param>
+      <!-- PWM below which the motors don't move. Small commands are scaled up past it
+           while a motion is commanded. 0 = off; measure on the bench (open loop). -->
+      <param name="pwm_deadband">0.0</param>
       <param name="open_loop_joints">$(arg open_loop_joints)</param>
       <!-- Closed loop: motors get 0 PWM if /enc_angles is older than this. -->
       <param name="encoder_timeout_s">0.25</param>

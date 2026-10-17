@@ -84,6 +84,7 @@ hardware_interface::CallbackReturn RoverArmHardware::on_init(
     ki_ = param_or(hw_params, "ki", ki_);
     pwm_limit_ = param_or(hw_params, "pwm_limit", pwm_limit_);
     ff_gain_ = param_or(hw_params, "ff_gain", ff_gain_);
+    pwm_deadband_ = std::clamp(param_or(hw_params, "pwm_deadband", pwm_deadband_), 0.0, pwm_limit_);
     encoder_timeout_s_ = param_or(hw_params, "encoder_timeout_s", encoder_timeout_s_);
     encoder_wait_s_ = param_or(hw_params, "encoder_wait_s", encoder_wait_s_);
     velocity_filter_alpha_ =
@@ -99,9 +100,10 @@ hardware_interface::CallbackReturn RoverArmHardware::on_init(
   }
 
   RCLCPP_INFO(
-    kLogger, "Parameters: kp=%.2f ki=%.2f pwm_limit=%.0f ff_gain=%.1f encoder_timeout_s=%.2f "
-    "encoder_wait_s=%.1f velocity_filter_alpha=%.2f runaway_time_s=%.2f stall_time_s=%.2f "
-    "max_jump_deg=%.1f (0 = check disabled)", kp_, ki_, pwm_limit_, ff_gain_,
+    kLogger, "Parameters: kp=%.2f ki=%.2f pwm_limit=%.0f ff_gain=%.1f pwm_deadband=%.0f "
+    "encoder_timeout_s=%.2f encoder_wait_s=%.1f velocity_filter_alpha=%.2f runaway_time_s=%.2f "
+    "stall_time_s=%.2f max_jump_deg=%.1f (0 = check disabled)", kp_, ki_, pwm_limit_, ff_gain_,
+    pwm_deadband_,
     encoder_timeout_s_, encoder_wait_s_, velocity_filter_alpha_, runaway_time_s_, stall_time_s_,
     max_jump_deg_);
 
@@ -799,6 +801,15 @@ hardware_interface::return_type RoverArmHardware::write(
         pwm, motor_open_loop_[m] ? "open loop" : "closed loop", motor_vel_setpoint[m]);
     }
     pwm = std::clamp(pwm, -pwm_limit_, pwm_limit_);
+
+    // Deadband compensation: map (0, pwm_limit] onto (pwm_deadband, pwm_limit] so a
+    // small command still moves the motor. Only while a motion is commanded --
+    // at hold (setpoint ~0) it would make the motor chatter around the target.
+    if (pwm_deadband_ > 0.0 && pwm != 0.0 && std::abs(motor_vel_setpoint[m]) > kDeadbandMinCmd)
+    {
+      const double sign = pwm > 0.0 ? 1.0 : -1.0;
+      pwm = sign * (pwm_deadband_ + std::abs(pwm) * (pwm_limit_ - pwm_deadband_) / pwm_limit_);
+    }
     msg.data[m] = static_cast<float>(pwm);
 
     // Dead reckoning in read() integrates what was actually requested of

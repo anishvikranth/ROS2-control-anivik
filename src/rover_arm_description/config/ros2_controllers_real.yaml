@@ -64,28 +64,19 @@ arm_controller:
 # tune them the same way you'll tune RoverArmHardware's own kp/ki, ideally
 # with the arm unloaded first. A joint that oscillates needs lower p; one
 # that lags behind the trajectory needs higher p or some i.
-# constraints:
-#       goal_time: 0.6 # seconds allowed to reach the final goal
-#       stopped_velocity_tolerance: 0.05 # rad/s to consider the arm "stopped"
-      
-#       base_link_joint:
-#         trajectory: 0.1 # max allowed tracking error (in radians) during motion
-#         goal: 0.02       # max allowed error at final destination
-#       shoulder_link_joint:
-#         trajectory: 0.1
-#         goal: 0.02
-#       elbow_link_joint:
-#         trajectory: 0.1
-#         goal: 0.02
-#       wrist_link_joint:
-#         trajectory: 0.1
-#         goal: 0.02
-#       palm_link_joint:
-#         trajectory: 0.1
-#         goal: 0.02
-#       left_finger_link_joint:
-#         trajectory: 0.2
-#         goal: 0.05
-#       right_finger_link_joint:
-#         trajectory: 0.2
-#         goal: 0.05
+
+    # Tolerances. If a joint falls more than `trajectory` behind the commanded
+    # trajectory (e.g. encoders dropped out and its motor was stopped), JTC
+    # aborts the trajectory and holds the CURRENT position instead of lurching
+    # toward the old target when the joint can move again. Looser than final
+    # values on purpose while the gains are untuned -- tighten after tuning.
+    constraints:
+      goal_time: 2.0                  # s allowed after the trajectory end to reach the goal
+      stopped_velocity_tolerance: 0.1 # rad/s to consider the arm stopped at the goal
+      base_link_joint:         {trajectory: 0.25, goal: 0.05}
+      shoulder_link_joint:     {trajectory: 0.25, goal: 0.05}
+      elbow_link_joint:        {trajectory: 0.25, goal: 0.05}
+      wrist_link_joint:        {trajectory: 0.25, goal: 0.05}
+      palm_link_joint:         {trajectory: 0.25, goal: 0.05}
+      left_finger_link_joint:  {trajectory: 0.4,  goal: 0.1}
+      right_finger_link_joint: {trajectory: 0.4,  goal: 0.1}

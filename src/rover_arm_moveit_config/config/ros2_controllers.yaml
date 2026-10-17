@@ -3,14 +3,15 @@ controller_manager:
   ros__parameters:
     update_rate: 100  # Hz
 
-    joint_trajectory_controller:
+    # Same name as in moveit_controllers.yaml and the sim/real configs.
+    arm_controller:
       type: joint_trajectory_controller/JointTrajectoryController
 
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
 
-joint_trajectory_controller:
+arm_controller:
   ros__parameters:
     joints:
       - base_link_joint
@@ -26,3 +27,5 @@ joint_trajectory_controller:
       - position
       - velocity
     allow_nonzero_velocity_at_trajectory_end: true
+    # MoveIt plans the 5-joint "arm" group; the fingers are a separate group.
+    allow_partial_joints_goal: true

@@ -170,6 +170,8 @@ private:
   double ki_{5.0};
   double pwm_limit_{255.0};
   double ff_gain_{100.0};             // open loop: PWM per rad/s of motor velocity
+  double pwm_deadband_{0.0};          // PWM below which the motors don't move (0 = off)
+  static constexpr double kDeadbandMinCmd = 0.01; // rad/s: only compensate real motion commands
   double encoder_timeout_s_{0.25};    // closed loop: max age of /enc_angles before 0 PWM
   double encoder_wait_s_{10.0};       // on_activate: how long to wait for first /enc_angles
   double velocity_filter_alpha_{0.5}; // 1.0 = no filtering, smaller = smoother

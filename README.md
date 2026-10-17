@@ -47,6 +47,9 @@ source install/setup.bash
 |---|---|
 | `ros2 launch rover_arm_description gazebo.launch.py` | Gazebo + arm, controllers, RViz, `joy_node` and the sim joystick node, a target cube, camera bridges (gripper camera, ZED RGB/depth/IMU) |
 | `ros2 launch rover_arm_description arm.launch.py` | The above plus MoveIt (`move_group` + MoveIt RViz) |
+| `ros2 launch rover_arm_description move_command.launch.py` | Sends one scripted MoveIt goal (`moveit_goal_node`). Add `use_sim_time:=false` outside Gazebo |
+| `ros2 launch rover_arm_description rviz.launch.py model:=rover_arm_sim.xacro` | RViz + joint sliders to check a URDF (`model` is any xacro in `urdf/`) |
+| `ros2 launch rover_arm_moveit_config demo.launch.py` | MoveIt with mock hardware (no Gazebo) |
 | `ros2 launch rover_description gz.launch.py` | Full rover in Gazebo |
 
 The simulated arm uses **position** command interfaces; the real arm uses **velocity**.
@@ -76,6 +79,7 @@ ros2 launch rover_arm_description arm_real.launch.py open_loop_joints:=wrist_lin
 | Launch argument | Default | Meaning |
 |---|---|---|
 | `open_loop_joints` | `none` | Joints driven without encoder feedback: `none`, `all`, or comma-separated joint names. Anything other than `none` starts in joystick-only mode. |
+| `serial_port` | `/dev/ttyACM0` | ESP32 serial port, passed to `arm.py` |
 | `avatar_repo_path` | `~/AVATAR` | Where `orin_side/arm.py` is run from |
 | `time_from_start_s` | `0.15` | Trajectory point time used by the teleop node |
 | `cooldown_s` | `0.3` | Debounce for the mode buttons |
@@ -114,7 +118,9 @@ Mode buttons toggle once per press; holding a button does not repeat.
 |---|---|
 | No `/enc_angles` at startup (closed-loop motors) | The plugin waits `encoder_wait_s`, sending 0 PWM to wake the ESP32; if nothing arrives, closed-loop motors stay disabled (0 PWM) until restart |
 | Encoders stop mid-run | Closed-loop motors get 0 PWM after `encoder_timeout_s`; resumes when data returns |
+| A joint falls > 0.25 rad behind its trajectory (e.g. during an encoder dropout) | `arm_controller` aborts the trajectory and holds the current position, so the arm doesn't lurch toward the old target afterwards |
 | Joystick link lost (> 0.5 s) | JOYSTICK_ONLY: velocities forced to 0. MANUAL: arm holds the last target |
+| USB serial to the ESP32 lost | `arm.py` drops commands and reconnects every second; an ESP32 reset seen after reconnecting is logged and raises a REBOOT fault |
 | No command reaches the ESP32 for 1 s | ESP32 firmware stops all motors (LED red) |
 | Hardware deactivated | 0 PWM sent to all motors |
 
@@ -145,11 +151,14 @@ incremental, so **the arm must be in its URDF zero pose when the ESP32 powers up
 | `kp`, `ki` | 40, 5 | Velocity PI gains (closed loop) |
 | `pwm_limit` | 255 | PWM clamp |
 | `ff_gain` | 100 | Open loop: PWM per rad/s (tune on the bench) |
+| `pwm_deadband` | 0 (off) | PWM below which the motors don't move; small commands are scaled up past it while a motion is commanded |
 | `encoder_timeout_s` | 0.25 | Max encoder data age before 0 PWM |
 | `encoder_wait_s` | 10 | Startup wait for the first encoder message |
 | `runaway_time_s`, `stall_time_s`, `max_jump_deg` | 0.5, 1.0, 15 | Fault thresholds (0 disables a check) |
 
-The trajectory controller's own PID gains are in `config/ros2_controllers_real.yaml`.
+The trajectory controller's PID gains and tracking tolerances (`constraints`) are in
+`config/ros2_controllers_real.yaml`. The tolerances are deliberately loose while the gains
+are untuned; tighten them after tuning.
 
 ### Topics
 
@@ -181,7 +190,7 @@ Do this with the arm lifted and the kill switch in reach.
    (`dir_dir[]` in `arm.c`), and `/enc_angles` **increases** (`enc_dir[]` in `arm.c`).
 3. Moving wrist pitch only makes both bevel angles change by the same amount with the
    same sign; roll only makes them change with opposite signs.
-4. Find the PWM below which motors don't move and tune `ff_gain`.
+4. Find the PWM below which motors don't move (set `pwm_deadband`) and tune `ff_gain`.
 5. Check for lost encoder counts: move a joint fast, return it slowly, compare angles.
 6. Only then switch to closed loop with low gains and tune `kp`/`ki`, then the JTC gains.
 
@@ -193,17 +202,39 @@ AVATAR repo (`TeamAnveshak/AVATAR`) is where they are run from and should be kep
 | File | Runs on | Purpose |
 |---|---|---|
 | `arm.c` | ESP32-S3 | Applies PWM from fields 2–7, reads the six quadrature encoders, streams PWM echo (12–17), counts (22–27), angles in degrees (32–37) and uptime (40) at 100 Hz, 1 s command watchdog |
-| `arm.py` | Orin | Bridges `/arm_target_angles` → ESP32 and ESP32 → `/enc_angles`, `/enc_counts`, `/arm_target_echo`, `/arm_esp_uptime` |
+| `arm.py` | Orin | Bridges `/arm_target_angles` → ESP32 and ESP32 → `/enc_angles`, `/enc_counts`, `/arm_target_echo`, `/arm_esp_uptime`. ROS params `port` (default `/dev/ttyACM0`) and `baud`; reconnects automatically if the port is lost |
 
-`arm.c` has not yet been compiled or tested on hardware. The serial port in `arm.py` is
-fixed to `/dev/ttyACM0`.
+`arm.c` compiles for the ESP32-S3 (esp32 board package 3.3.12) but has not been tested on
+hardware yet. `arm.py` has been tested against a simulated serial port only.
+
+### Compiling and flashing on Linux
+
+The Arduino tools need the sketch as `<name>/<name>.ino`, so copy `arm.c` to `arm/arm.ino`.
+
+```bash
+# One-time setup
+arduino-cli config init
+arduino-cli config set board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+arduino-cli core update-index
+arduino-cli core install esp32:esp32@3.3.12
+# The AVATAR Arduino library must be in ~/Arduino/libraries/AVATAR
+sudo usermod -aG dialout $USER     # then log out and back in
+
+# Compile / flash (close arm.py first -- only one program can hold the port)
+arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc arm
+arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc --upload -p /dev/ttyACM0 arm
+```
+
+`CDCOnBoot=cdc` (USB CDC On Boot: Enabled) is required for `arm.py` to talk to the board
+over `/dev/ttyACM0`. Match any other board settings (flash size, PSRAM, USB mode) to the
+ones used in the Arduino IDE.
 
 ## Known issues
 
-- `rover_arm_description/launch/rviz.launch.py` points at `rover_test_version.xacro`, which doesn't exist.
-- `rover_arm_moveit_config`: the demo `ros2_controllers.yaml` names the controller `joint_trajectory_controller` while MoveIt expects `arm_controller`; `rover_arm.urdf.xacro` adds a second `ros2_control` block on top of the sim one; the SRDF virtual joint conflicts with the `world` link in the sim URDF.
 - KDL IK often fails for pose goals on this 5-DOF arm; consider `pick_ik` or position-only IK.
 - The three arm xacros are copies of each other and have drifted (e.g. joint limits in `rover_arm_raw.xacro`).
+- `move_group` logs errors about `DepthImageOctomapUpdater`: `moveit_ros_perception` isn't installed. Harmless until depth-camera obstacle avoidance is needed; then install it or drop `sensors_3d.yaml`.
+- `rover_arm_raw.xacro` uses relative mesh paths from LinkForge, so it can't be shown in RViz directly.
 
 ## URDF
 

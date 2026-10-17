@@ -1,6 +1,9 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="rover_arm">
     <xacro:arg name="initial_positions_file" default="initial_positions.yaml" />
+    <!-- Leave out the sim xacro's Gazebo ros2_control block: this file adds its own
+         mock block below, and two blocks claiming the same joints conflict. -->
+    <xacro:arg name="use_gazebo_ros2_control" default="false" />
 
     <!-- Import rover_arm urdf file -->
     <xacro:include filename="$(find rover_arm_description)/urdf/rover_arm_sim.xacro" />

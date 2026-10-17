@@ -1,5 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="rover_arm">
+  <xacro:arg name="use_gazebo_ros2_control" default="true"/>
+
   <xacro:macro name="aluminum_material" params="link_name">
     <gazebo reference="${link_name}">
       <visual>
@@ -331,6 +333,10 @@
     <child link="zed_camera_optical_frame"/>
   </joint>
 
+  <!-- Gazebo's ros2_control hardware + plugin. Set use_gazebo_ros2_control:=false when
+       this file is included for something else (e.g. the MoveIt demo, which adds its own
+       mock ros2_control block) so there is only one hardware block for these joints. -->
+  <xacro:if value="$(arg use_gazebo_ros2_control)">
   <ros2_control name="GazeboSimSystem" type="system">
     <hardware>
       <plugin>gz_ros2_control/GazeboSimSystem</plugin>
@@ -405,6 +411,7 @@
       <parameters>$(find rover_arm_description)/config/ros2_controllers_sim.yaml</parameters>
     </plugin>
   </gazebo>
+  </xacro:if>
 
   <gazebo reference="left_finger_link">
     <self_collide>true</self_collide>

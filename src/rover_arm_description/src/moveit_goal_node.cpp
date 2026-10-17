@@ -1,4 +1,5 @@
 #include <memory>
+#include <thread>
 #include <vector>
 
 #include <rclcpp/rclcpp.hpp>
@@ -10,7 +11,7 @@ void PrintRobotInfo(const rclcpp::Node::SharedPtr& node, moveit::planning_interf
     //Print the planning frame
     RCLCPP_INFO(node->get_logger(),"Planning Frame: %s",move_group.getPlanningFrame().c_str());
     //Print the end effector
-    RCLCPP_INFO(node->get_logger(),"End effector Link: %s", move_group.getPlanningFrame().c_str());
+    RCLCPP_INFO(node->get_logger(),"End effector Link: %s", move_group.getEndEffectorLink().c_str());
     //Print all the planning groups
     RCLCPP_INFO(node->get_logger(),"Available Planning Groups:");
     for (const auto &group : move_group.getJointModelGroupNames())
@@ -19,8 +20,8 @@ void PrintRobotInfo(const rclcpp::Node::SharedPtr& node, moveit::planning_interf
     }
 }
 
-bool PrintCurrentJointValues(const rclcpp::Node::SharedPtr& node, moveit::planning_interface::MoveGroupInterface& move_group){
-    
+// TODO: not implemented yet (was declared bool with no return, which is undefined behaviour if called).
+void PrintCurrentJointValues(const rclcpp::Node::SharedPtr& /*node*/, moveit::planning_interface::MoveGroupInterface& /*move_group*/){
 }
 int main(int argc, char * argv[])
 {

@@ -145,6 +145,12 @@ def generate_launch_description():
         ),
     )
 
+    serial_port_arg = DeclareLaunchArgument(
+        "serial_port",
+        default_value="/dev/ttyACM0",
+        description="ESP32 serial port used by arm.py (find it with: ls /dev/ttyACM*)",
+    )
+
     time_from_start_arg = DeclareLaunchArgument(
         "time_from_start_s",
         default_value="0.15",
@@ -165,6 +171,7 @@ def generate_launch_description():
         cmd=[
             "python3",
             PathJoinSubstitution([avatar_repo_path, "orin_side", "arm.py"]),
+            "--ros-args", "-p", ["port:=", LaunchConfiguration("serial_port")],
         ],
         output="screen",
     )
@@ -183,6 +190,7 @@ def generate_launch_description():
         [
             avatar_repo_arg,
             open_loop_joints_arg,
+            serial_port_arg,
             time_from_start_arg,
             cooldown_arg,
             arm_com_node,
