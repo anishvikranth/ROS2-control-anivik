@@ -70,6 +70,14 @@ install(
 )
 
 
+# ==================== Install Scripts ====================
+
+install(
+  PROGRAMS
+    scripts/virtual_esp.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 # ==================== Install Package Resources ====================
 
 install(

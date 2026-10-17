@@ -3,6 +3,7 @@
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <sensor_msgs/msg/joy.hpp>
 #include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/empty.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <trajectory_msgs/msg/joint_trajectory.hpp>
@@ -86,6 +87,11 @@ public:
         arm_state_pub = this->create_publisher<std_msgs::msg::Bool>("/arm_state", 10);
         input_space_pub = this->create_publisher<std_msgs::msg::Bool>("/input_space", 10);
         mode_pub = this->create_publisher<std_msgs::msg::String>("/arm_control_mode", 10);
+        // MoveIt's RViz panel keeps its own start/goal state, which is NOT refreshed
+        // while the joystick moves the arm. Without these, "Plan" right after
+        // switching to AUTONOMOUS plans from a stale pose and execution fails.
+        rviz_start_state_pub = this->create_publisher<std_msgs::msg::Empty>("/rviz/moveit/update_start_state", 10);
+        rviz_goal_state_pub = this->create_publisher<std_msgs::msg::Empty>("/rviz/moveit/update_goal_state", 10);
 
         switch_client = this->create_client<controller_manager_msgs::srv::SwitchController>(
             "/controller_manager/switch_controller");
@@ -157,6 +163,8 @@ private:
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr arm_state_pub;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr input_space_pub;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr mode_pub;
+    rclcpp::Publisher<std_msgs::msg::Empty>::SharedPtr rviz_start_state_pub;
+    rclcpp::Publisher<std_msgs::msg::Empty>::SharedPtr rviz_goal_state_pub;
     rclcpp::Client<controller_manager_msgs::srv::SwitchController>::SharedPtr switch_client;
     rclcpp::TimerBase::SharedPtr velocity_timer;
     rclcpp::TimerBase::SharedPtr mode_timer;
@@ -190,6 +198,12 @@ private:
     bool joint_states_seen_ = false;
     rclcpp::Time switch_request_time_{0, 0, RCL_ROS_TIME};
     static constexpr double kSwitchTimeoutS = 3.0;
+    // After entering AUTONOMOUS, refresh RViz a few times while the last
+    // joystick trajectory (time_from_start_s) settles.
+    rclcpp::Time rviz_sync_until_{0, 0, RCL_ROS_TIME};
+    rclcpp::Time last_rviz_sync_{0, 0, RCL_ROS_TIME};
+    static constexpr double kRvizSyncWindowS = 1.0;
+    static constexpr double kRvizSyncPeriodS = 0.25;
 
     sensor_msgs::msg::Joy::SharedPtr last_joy_;
     rclcpp::Time last_joy_time_{0, 0, RCL_ROS_TIME};
@@ -312,6 +326,13 @@ void RealArmTeleopNode::check_joy_link() {
 void RealArmTeleopNode::velocity_timer_callback() {
     check_joy_link();
 
+    const rclcpp::Time now = this->now();
+    if (arm_state_ && now < rviz_sync_until_ && (now - last_rviz_sync_).seconds() >= kRvizSyncPeriodS) {
+        last_rviz_sync_ = now;
+        rviz_start_state_pub->publish(std_msgs::msg::Empty());
+        rviz_goal_state_pub->publish(std_msgs::msg::Empty());
+    }
+
     if (switch_pending_ && (this->now() - switch_request_time_).seconds() > kSwitchTimeoutS) {
         switch_pending_ = false;
         RCLCPP_ERROR(this->get_logger(), "Controller switch got no response in %.1f s -- mode unchanged (%s). "
@@ -418,6 +439,11 @@ void RealArmTeleopNode::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
             arm_state_ = !arm_state_;
             if (!arm_state_) {
                 need_resync_ = true; // MoveIt moved the arm; don't jump back to old targets
+            } else {
+                // Point RViz's start + goal state at the arm's real pose.
+                rviz_sync_until_ = now + rclcpp::Duration::from_seconds(kRvizSyncWindowS);
+                last_rviz_sync_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
+                RCLCPP_INFO(this->get_logger(), "RViz MotionPlanning start/goal state synced to the current arm pose.");
             }
             RCLCPP_INFO(this->get_logger(), "Switched Arm Mode to: %s",
                         arm_state_ ? "AUTONOMOUS (MoveIt in control)" : "MANUAL (Joystick in control)");

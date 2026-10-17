@@ -34,7 +34,8 @@ def generate_launch_description():
                 "launch",
                 "moveit_rviz.launch.py",
             )
-        )
+        ),
+        launch_arguments={'use_sim_time': 'true'}.items()
     )
 
     return LaunchDescription([

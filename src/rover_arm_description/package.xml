@@ -38,6 +38,13 @@
   <exec_depend>velocity_controllers</exec_depend>
   <exec_depend>moveit_configs_utils</exec_depend>
 
+  <!-- Simulation (gazebo.launch.py, arm_real_sim.launch.py) -->
+  <exec_depend>ros_gz_sim</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>gz_ros2_control</exec_depend>
+  <exec_depend>joy</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+
   <!-- MoveIt -->
   <depend>moveit_ros_planning_interface</depend>
   <depend>moveit_msgs</depend>

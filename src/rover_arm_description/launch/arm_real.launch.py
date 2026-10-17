@@ -3,6 +3,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription, OpaqueFunction
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
@@ -13,6 +14,8 @@ def launch_setup(context):
     # Resolved here (not as a LaunchConfiguration) because it has to be baked
     # into the URDF that MoveItConfigsBuilder generates below.
     open_loop_joints = LaunchConfiguration("open_loop_joints").perform(context).strip() or "none"
+    ff_gain = LaunchConfiguration("ff_gain").perform(context)
+    pwm_deadband = LaunchConfiguration("pwm_deadband").perform(context)
     open_loop = open_loop_joints != "none"
 
     real_urdf_path = os.path.join(
@@ -28,7 +31,8 @@ def launch_setup(context):
     # planning config still come from rover_arm_moveit_config as normal.
     moveit_config = (
         MoveItConfigsBuilder("rover_arm", package_name="rover_arm_moveit_config")
-        .robot_description(file_path=real_urdf_path, mappings={"open_loop_joints": open_loop_joints})
+        .robot_description(file_path=real_urdf_path, mappings={
+            "open_loop_joints": open_loop_joints, "ff_gain": ff_gain, "pwm_deadband": pwm_deadband})
         .to_moveit_configs()
     )
 
@@ -113,7 +117,34 @@ def launch_setup(context):
         parameters=[moveit_config.to_dict(), move_group_configuration],
     )
 
+    # SRDF virtual joint world -> stand_link. The real URDF starts at stand_link,
+    # so without this RViz's fixed frame "world" doesn't exist.
+    world_tf = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        arguments=["--frame-id", "world", "--child-frame-id", "stand_link"],
+    )
+
+    # RViz with the SAME (real) robot model as move_group, on wall-clock time.
+    # (moveit_rviz.launch.py would load the sim URDF.)
+    moveit_rviz = Node(
+        package="rviz2",
+        executable="rviz2",
+        name="rviz",
+        output="screen",
+        arguments=["-d", str(moveit_config.package_path / "config/moveit.rviz")],
+        parameters=[
+            moveit_config.robot_description,
+            moveit_config.robot_description_semantic,
+            moveit_config.robot_description_kinematics,
+            moveit_config.joint_limits,
+        ],
+        condition=IfCondition(LaunchConfiguration("rviz")),
+    )
+
     return [
+        world_tf,
+        moveit_rviz,
         robot_state_publisher,
         ros2_control_node,
         joint_state_broadcaster_spawner,
@@ -145,6 +176,23 @@ def generate_launch_description():
         ),
     )
 
+    ff_gain_arg = DeclareLaunchArgument(
+        "ff_gain", default_value="100.0",
+        description="PWM per rad/s of motor velocity (open loop, and closed-loop feed-forward)")
+    pwm_deadband_arg = DeclareLaunchArgument(
+        "pwm_deadband", default_value="0.0",
+        description="PWM below which the motors don't move (0 = no compensation)")
+
+    rviz_arg = DeclareLaunchArgument(
+        "rviz", default_value="true", description="Start MoveIt RViz (false on a headless Orin)")
+
+    start_arm_py_arg = DeclareLaunchArgument(
+        "start_arm_py",
+        default_value="true",
+        description="Start the AVATAR serial bridge (arm.py). arm_real_sim.launch.py sets "
+        "false and uses virtual_esp.py instead.",
+    )
+
     serial_port_arg = DeclareLaunchArgument(
         "serial_port",
         default_value="/dev/ttyACM0",
@@ -174,27 +222,22 @@ def generate_launch_description():
             "--ros-args", "-p", ["port:=", LaunchConfiguration("serial_port")],
         ],
         output="screen",
+        condition=IfCondition(LaunchConfiguration("start_arm_py")),
     )
 
-    moveit_rviz = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory("rover_arm_moveit_config"),
-                "launch",
-                "moveit_rviz.launch.py",
-            )
-        )
-    )
 
     return LaunchDescription(
         [
             avatar_repo_arg,
             open_loop_joints_arg,
             serial_port_arg,
+            start_arm_py_arg,
+            rviz_arg,
+            ff_gain_arg,
+            pwm_deadband_arg,
             time_from_start_arg,
             cooldown_arg,
             arm_com_node,
             OpaqueFunction(function=launch_setup),
-            moveit_rviz,
         ]
     )

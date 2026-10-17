@@ -5,6 +5,9 @@
        list of joint names, e.g. "wrist_link_joint,palm_link_joint".
        Set from the launch file: arm_real.launch.py open_loop_joints:=all -->
   <xacro:arg name="open_loop_joints" default="none"/>
+  <!-- Motor tuning, overridable from the launch file (arm_real.launch.py ff_gain:=... pwm_deadband:=...). -->
+  <xacro:arg name="ff_gain" default="100.0"/>
+  <xacro:arg name="pwm_deadband" default="0.0"/>
 
   <xacro:macro name="aluminum_material" params="link_name">
     <gazebo reference="${link_name}">
@@ -77,7 +80,7 @@
     <collision>
       <origin xyz="-0.013622 -0.083285 0" rpy="0 0 -3.141593" />
       <geometry>
-        <sphere radius="0.092785" />
+        <mesh filename="package://rover_arm_description/urdf/meshes/left_finger_link_collision.stl" />
       </geometry>
     </collision>
   </link>
@@ -119,7 +122,7 @@
     <collision>
       <origin xyz="0.013622 -0.083285 0" rpy="3.141593 0 0" />
       <geometry>
-        <sphere radius="0.092785" />
+        <mesh filename="package://rover_arm_description/urdf/meshes/right_finger_link_collision.stl" />
       </geometry>
     </collision>
   </link>
@@ -253,11 +256,12 @@
       <param name="kp">40.0</param>
       <param name="ki">5.0</param>
       <param name="pwm_limit">255.0</param>
-      <!-- Open loop: PWM = ff_gain * motor velocity (rad/s). Tune on the bench. -->
-      <param name="ff_gain">100.0</param>
+      <!-- PWM per rad/s of motor velocity: the whole command in open loop, the feed-forward
+           in closed loop. Tune on the bench in open loop first. -->
+      <param name="ff_gain">$(arg ff_gain)</param>
       <!-- PWM below which the motors don't move. Small commands are scaled up past it
            while a motion is commanded. 0 = off; measure on the bench (open loop). -->
-      <param name="pwm_deadband">0.0</param>
+      <param name="pwm_deadband">$(arg pwm_deadband)</param>
       <param name="open_loop_joints">$(arg open_loop_joints)</param>
       <!-- Closed loop: motors get 0 PWM if /enc_angles is older than this. -->
       <param name="encoder_timeout_s">0.25</param>

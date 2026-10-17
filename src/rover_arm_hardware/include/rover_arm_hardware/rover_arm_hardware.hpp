@@ -34,7 +34,7 @@ namespace rover_arm_hardware
  *  2. Estimates motor velocities from successive /enc_angles messages (low-pass filtered).
  *  3. Translates wrist pitch/roll joint commands into differential motor space (Bevel 1 & 2).
  *  4. Per motor, either:
- *       - CLOSED LOOP: runs a velocity PI controller on encoder feedback, or
+ *       - CLOSED LOOP: pwm = ff_gain * velocity + PI correction on encoder feedback, or
  *       - OPEN LOOP:   maps velocity straight to PWM (pwm = ff_gain * velocity) and
  *                      reports a dead-reckoned position (integral of the command).
  *     Motors are put in open loop via the "open_loop_joints" hardware parameter.
@@ -169,7 +169,7 @@ private:
   double kp_{40.0};
   double ki_{5.0};
   double pwm_limit_{255.0};
-  double ff_gain_{100.0};             // open loop: PWM per rad/s of motor velocity
+  double ff_gain_{100.0};             // PWM per rad/s of motor velocity (open loop, and closed-loop feed-forward)
   double pwm_deadband_{0.0};          // PWM below which the motors don't move (0 = off)
   static constexpr double kDeadbandMinCmd = 0.01; // rad/s: only compensate real motion commands
   double encoder_timeout_s_{0.25};    // closed loop: max age of /enc_angles before 0 PWM

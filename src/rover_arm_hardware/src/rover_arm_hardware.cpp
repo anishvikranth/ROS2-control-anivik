@@ -752,7 +752,10 @@ hardware_interface::return_type RoverArmHardware::write(
       const double error = motor_vel_setpoint[m] - motor_vel_measured_[m];
       motor_vel_error_integral_[m] =
         std::clamp(motor_vel_error_integral_[m] + error * dt, -integral_limit, integral_limit);
-      pwm = kp_ * error + ki_ * motor_vel_error_integral_[m];
+      // Feed-forward (same ff_gain as open loop) supplies the bulk of the PWM;
+      // the PI only corrects the remaining error. Without it, small commands
+      // stay below the motor deadband until the slow integrator catches up.
+      pwm = ff_gain_ * motor_vel_setpoint[m] + kp_ * error + ki_ * motor_vel_error_integral_[m];
 
       // Fault detection.
       // RUNAWAY: the motor moves opposite to the direction it is driven. With a

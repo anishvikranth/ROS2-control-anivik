@@ -1,4 +1,7 @@
 from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
+from launch_ros.parameter_descriptions import ParameterValue
 
 from launch_ros.actions import Node
 
@@ -31,7 +34,9 @@ def generate_launch_description():
             moveit_config.robot_description_kinematics,
             moveit_config.joint_limits,
             {
-            "use_sim_time": True,
+            # true only with Gazebo's /clock (arm.launch.py). The real arm runs on
+            # wall-clock time; with sim time and no /clock, RViz's clock stays at 0.
+            "use_sim_time": ParameterValue(LaunchConfiguration("use_sim_time"), value_type=bool),
             "publish_robot_description": True,
             "publish_robot_description_semantic": True,
             },
@@ -40,7 +45,7 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
-            
+            DeclareLaunchArgument("use_sim_time", default_value="false"),
             rviz,
         ]
     )

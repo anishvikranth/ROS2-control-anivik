@@ -47,13 +47,54 @@ source install/setup.bash
 |---|---|
 | `ros2 launch rover_arm_description gazebo.launch.py` | Gazebo + arm, controllers, RViz, `joy_node` and the sim joystick node, a target cube, camera bridges (gripper camera, ZED RGB/depth/IMU) |
 | `ros2 launch rover_arm_description arm.launch.py` | The above plus MoveIt (`move_group` + MoveIt RViz) |
+| `ros2 launch rover_arm_description arm_real_sim.launch.py` | **The real-arm software stack against Gazebo** -- see [Real-arm stack in simulation](#real-arm-stack-in-simulation) |
 | `ros2 launch rover_arm_description move_command.launch.py` | Sends one scripted MoveIt goal (`moveit_goal_node`). Add `use_sim_time:=false` outside Gazebo |
 | `ros2 launch rover_arm_description rviz.launch.py model:=rover_arm_sim.xacro` | RViz + joint sliders to check a URDF (`model` is any xacro in `urdf/`) |
 | `ros2 launch rover_arm_moveit_config demo.launch.py` | MoveIt with mock hardware (no Gazebo) |
 | `ros2 launch rover_description gz.launch.py` | Full rover in Gazebo |
 
-The simulated arm uses **position** command interfaces; the real arm uses **velocity**.
-Joystick-only mode (below) therefore exists on the real arm only, for now.
+`gazebo.launch.py` / `arm.launch.py` drive the simulated arm through **position** interfaces
+(a quick sim). `arm_real_sim.launch.py` runs the exact real-arm stack instead.
+
+### Real-arm stack in simulation
+
+```bash
+ros2 launch rover_arm_description arm_real_sim.launch.py                         # closed loop
+ros2 launch rover_arm_description arm_real_sim.launch.py open_loop_joints:=all   # no "encoders"
+```
+
+```
+ Gazebo arm (velocity joints, its own controller manager in /gz)
+     ^ joint velocities           | /gz/joint_states
+ scripts/virtual_esp.py   -- stands in for the ESP32 + arm.py
+     ^ /arm_target_angles (PWM)   | /enc_angles, /arm_esp_uptime
+ arm_real.launch.py  (RoverArmHardware, controllers, teleop, MoveIt) -- unchanged
+```
+
+`virtual_esp.py` models the motors (PWM deadband, top speed, lag, wiring direction), the
+differential wrist and shared gripper motor, the 1 s watchdog and 100 Hz telemetry. Use it
+to practise driving, try the modes, rough-tune gains and rehearse failures before using the
+real arm.
+
+| Argument | Default | Meaning |
+|---|---|---|
+| `gui` | `true` | Gazebo window |
+| `rviz` | `true` | MoveIt RViz |
+| `use_joy` | `true` | Start `joy_node` publishing on `/joy_arm` |
+| `open_loop_joints` | `none` | As for the real arm |
+| `motor_deadband` | `30` | Virtual motors: PWM below which they don't move |
+| `pwm_deadband` | `30` | `RoverArmHardware` deadband compensation |
+| `ff_gain` | `255` | `RoverArmHardware` feed-forward (the virtual motors reach 1 rad/s at full PWM) |
+| `spawn_cube` | `true` | Target cube in front of the arm |
+
+Failure drills while it runs:
+
+```bash
+ros2 topic pub --once /virtual_esp/unplug_encoders std_msgs/msg/Bool "{data: true}"   # false to replug
+ros2 topic pub --once /virtual_esp/reboot std_msgs/msg/Empty                          # ESP32 reset
+ros2 topic pub --once /virtual_esp/freeze_encoder std_msgs/msg/Int32 "{data: 0}"      # motor index, -1 = none
+ros2 param set /virtual_esp enc_dir "[-1.0, 1.0, 1.0, 1.0, 1.0, 1.0]"                 # reversed encoder
+```
 
 ## Real arm
 
@@ -80,6 +121,10 @@ ros2 launch rover_arm_description arm_real.launch.py open_loop_joints:=wrist_lin
 |---|---|---|
 | `open_loop_joints` | `none` | Joints driven without encoder feedback: `none`, `all`, or comma-separated joint names. Anything other than `none` starts in joystick-only mode. |
 | `serial_port` | `/dev/ttyACM0` | ESP32 serial port, passed to `arm.py` |
+| `ff_gain` | `100.0` | PWM per rad/s (open loop, and closed-loop feed-forward) |
+| `pwm_deadband` | `0.0` | Motor deadband compensation (0 = off) |
+| `rviz` | `true` | Start MoveIt RViz (`false` on a headless Orin) |
+| `start_arm_py` | `true` | Start `arm.py` (`arm_real_sim` sets `false`) |
 | `avatar_repo_path` | `~/AVATAR` | Where `orin_side/arm.py` is run from |
 | `time_from_start_s` | `0.15` | Trajectory point time used by the teleop node |
 | `cooldown_s` | `0.3` | Debounce for the mode buttons |
@@ -94,6 +139,12 @@ ros2 launch rover_arm_description arm_real.launch.py open_loop_joints:=wrist_lin
 | `MANUAL` | `arm_controller` (JointTrajectoryController) | Moves target joint **positions** | Yes |
 | `JOYSTICK_ONLY` | `joystick_only_controller` (JointGroupVelocityController) | Sends joint **velocities** straight to the motors, no position loop | No |
 | `AUTONOMOUS` | `arm_controller`, driven by MoveIt | Joystick ignored (except the mode button) | Yes |
+
+Pressing **A** to enter AUTONOMOUS also points RViz's MotionPlanning start and goal state at
+the arm's real pose. RViz doesn't re-sync the planning group's start state by itself (only
+after an execution), so without this, **Plan** after joystick moves would start from where
+the last MoveIt execution ended and execution would fail. This needs **External Comm.**
+ticked in the Planning tab -- `moveit.rviz` turns it on; don't save the config with it off.
 
 The current mode is published on `/arm_control_mode`. Only one of the two controllers is
 active at a time; the teleop node switches them through the controller manager.
@@ -148,14 +199,15 @@ incremental, so **the arm must be in its URDF zero pose when the ESP32 powers up
 
 | Parameter | Default | Meaning |
 |---|---|---|
-| `kp`, `ki` | 40, 5 | Velocity PI gains (closed loop) |
+| `kp`, `ki` | 40, 5 | Velocity PI correction gains (closed loop) |
 | `pwm_limit` | 255 | PWM clamp |
-| `ff_gain` | 100 | Open loop: PWM per rad/s (tune on the bench) |
+| `ff_gain` | 100 | PWM per rad/s: the whole command in open loop, the feed-forward in closed loop (PWM = ff_gain x velocity + PI correction). Tune in open loop first |
 | `pwm_deadband` | 0 (off) | PWM below which the motors don't move; small commands are scaled up past it while a motion is commanded |
 | `encoder_timeout_s` | 0.25 | Max encoder data age before 0 PWM |
 | `encoder_wait_s` | 10 | Startup wait for the first encoder message |
 | `runaway_time_s`, `stall_time_s`, `max_jump_deg` | 0.5, 1.0, 15 | Fault thresholds (0 disables a check) |
 
+`ff_gain` and `pwm_deadband` can also be set from the launch file without editing the xacro.
 The trajectory controller's PID gains and tracking tolerances (`constraints`) are in
 `config/ros2_controllers_real.yaml`. The tolerances are deliberately loose while the gains
 are untuned; tighten them after tuning.
@@ -235,6 +287,7 @@ ones used in the Arduino IDE.
 - The three arm xacros are copies of each other and have drifted (e.g. joint limits in `rover_arm_raw.xacro`).
 - `move_group` logs errors about `DepthImageOctomapUpdater`: `moveit_ros_perception` isn't installed. Harmless until depth-camera obstacle avoidance is needed; then install it or drop `sensors_3d.yaml`.
 - `rover_arm_raw.xacro` uses relative mesh paths from LinkForge, so it can't be shown in RViz directly.
+- While a motor is faulted, holding the joystick makes `arm_controller` log "Holding position due to state tolerance violation" for every new target (safe, just noisy).
 
 ## URDF
 

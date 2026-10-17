@@ -1,6 +1,14 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="rover_arm">
   <xacro:arg name="use_gazebo_ros2_control" default="true"/>
+  <!-- position (default, gazebo.launch.py) or velocity (arm_real_sim.launch.py: the
+       real-arm stack drives Gazebo through virtual_esp.py, which commands velocities). -->
+  <xacro:arg name="gz_command_interface" default="position"/>
+  <xacro:property name="gz_cmd_velocity" value="${'$(arg gz_command_interface)' == 'velocity'}"/>
+  <!-- Namespace + controller file for Gazebo's own controller manager. arm_real_sim
+       uses /gz so it doesn't clash with the real stack's /controller_manager. -->
+  <xacro:arg name="gz_namespace" default=""/>
+  <xacro:arg name="gz_controllers_file" default="ros2_controllers_sim.yaml"/>
 
   <xacro:macro name="aluminum_material" params="link_name">
     <gazebo reference="${link_name}">
@@ -343,64 +351,99 @@
     </hardware>
     
     <joint name="base_link_joint">
-      <command_interface name="position">
-        <param name="min">-1.570795</param>
-        <param name="max">1.570795</param>
-      </command_interface>
+      <xacro:if value="${gz_cmd_velocity}">
+        <command_interface name="velocity"/>
+      </xacro:if>
+      <xacro:unless value="${gz_cmd_velocity}">
+        <command_interface name="position">
+          <param name="min">-1.570795</param>
+          <param name="max">1.570795</param>
+        </command_interface>
+      </xacro:unless>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
     </joint>
 
     <joint name="shoulder_link_joint">
-      <command_interface name="position">
-        <param name="min">-0.3927</param>
-        <param name="max">1.5708</param>
-      </command_interface>
+      <xacro:if value="${gz_cmd_velocity}">
+        <command_interface name="velocity"/>
+      </xacro:if>
+      <xacro:unless value="${gz_cmd_velocity}">
+        <command_interface name="position">
+          <param name="min">-0.3927</param>
+          <param name="max">1.5708</param>
+        </command_interface>
+      </xacro:unless>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
     </joint>
     
     <joint name="elbow_link_joint">
-      <command_interface name="position">
-        <param name="min">-3.141593</param>
-        <param name="max">3.141593</param>
-      </command_interface>
+      <xacro:if value="${gz_cmd_velocity}">
+        <command_interface name="velocity"/>
+      </xacro:if>
+      <xacro:unless value="${gz_cmd_velocity}">
+        <command_interface name="position">
+          <param name="min">-3.141593</param>
+          <param name="max">3.141593</param>
+        </command_interface>
+      </xacro:unless>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
     </joint>
 
     <joint name="wrist_link_joint">
-      <command_interface name="position">
-        <param name="min">-1.570795</param>
-        <param name="max">1.570795</param>
-      </command_interface>
+      <xacro:if value="${gz_cmd_velocity}">
+        <command_interface name="velocity"/>
+      </xacro:if>
+      <xacro:unless value="${gz_cmd_velocity}">
+        <command_interface name="position">
+          <param name="min">-1.570795</param>
+          <param name="max">1.570795</param>
+        </command_interface>
+      </xacro:unless>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
     </joint>
 
     <joint name="palm_link_joint">
-      <command_interface name="position">
-        <param name="min">-3.141593</param>
-        <param name="max">3.141593</param>
-      </command_interface>
+      <xacro:if value="${gz_cmd_velocity}">
+        <command_interface name="velocity"/>
+      </xacro:if>
+      <xacro:unless value="${gz_cmd_velocity}">
+        <command_interface name="position">
+          <param name="min">-3.141593</param>
+          <param name="max">3.141593</param>
+        </command_interface>
+      </xacro:unless>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
     </joint>
   
     <joint name="left_finger_link_joint">
-      <command_interface name="position">
-        <param name="min">-1.570795</param>
-        <param name="max">0.785398</param>
-      </command_interface>
+      <xacro:if value="${gz_cmd_velocity}">
+        <command_interface name="velocity"/>
+      </xacro:if>
+      <xacro:unless value="${gz_cmd_velocity}">
+        <command_interface name="position">
+          <param name="min">-1.570795</param>
+          <param name="max">0.785398</param>
+        </command_interface>
+      </xacro:unless>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
     </joint>
 
     <joint name="right_finger_link_joint">
-      <command_interface name="position">
-        <param name="min">-0.785398</param>
-        <param name="max">1.570795</param>
-      </command_interface>
+      <xacro:if value="${gz_cmd_velocity}">
+        <command_interface name="velocity"/>
+      </xacro:if>
+      <xacro:unless value="${gz_cmd_velocity}">
+        <command_interface name="position">
+          <param name="min">-0.785398</param>
+          <param name="max">1.570795</param>
+        </command_interface>
+      </xacro:unless>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
     </joint>
@@ -408,7 +451,10 @@
 
   <gazebo>
     <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
-      <parameters>$(find rover_arm_description)/config/ros2_controllers_sim.yaml</parameters>
+      <ros>
+        <namespace>$(arg gz_namespace)</namespace>
+      </ros>
+      <parameters>$(find rover_arm_description)/config/$(arg gz_controllers_file)</parameters>
     </plugin>
   </gazebo>
   </xacro:if>

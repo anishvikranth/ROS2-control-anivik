@@ -1,0 +1,25 @@
+# Gazebo's OWN controllers for arm_real_sim.launch.py (namespace /gz).
+# virtual_esp.py turns the real stack's PWM into motor speeds and commands the
+# simulated joints through motor_velocity_controller -- standing in for the
+# physical motors. Not used by gazebo.launch.py or the real arm.
+/**/controller_manager:
+  ros__parameters:
+    update_rate: 200 # Hz
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    motor_velocity_controller:
+      type: velocity_controllers/JointGroupVelocityController
+
+/**/motor_velocity_controller:
+  ros__parameters:
+    # Order matters: virtual_esp.py publishes commands in this order.
+    joints:
+      - base_link_joint
+      - shoulder_link_joint
+      - elbow_link_joint
+      - wrist_link_joint
+      - palm_link_joint
+      - left_finger_link_joint
+      - right_finger_link_joint

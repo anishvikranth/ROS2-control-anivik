@@ -19,6 +19,16 @@ Visualization Manager:
         Loop Animation: true
         State Display Time: 0.05 s
         Trajectory Topic: display_planned_path
+      # "External Comm." checkbox: RViz only listens on /rviz/moveit/* when this is on.
+      # real_arm_teleop_node uses /rviz/moveit/update_start_state + update_goal_state
+      # when switching to AUTONOMOUS, because RViz never re-syncs the planning group's
+      # start state by itself (only after an execution) -- so after joystick moves,
+      # "Plan" would start from the pose where the last MoveIt execution ended.
+      MoveIt_Allow_External_Program: true
+      Planning Request:
+        # Show the start (green) and goal (orange) states.
+        Query Start State: true
+        Query Goal State: true
       Planning Scene Topic: monitored_planning_scene
       Robot Description: robot_description
       Scene Geometry:
