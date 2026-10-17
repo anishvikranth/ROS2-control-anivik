@@ -7,39 +7,45 @@ default_acceleration_scaling_factor: 0.1
 
 # Specific joint properties can be changed with the keys [max_position, min_position, max_velocity, max_acceleration]
 # Joint limits can be turned off with [has_velocity_limits, has_acceleration_limits]
+# max_velocity must not exceed what the motors can do, or the arm falls behind the
+# trajectory and arm_controller aborts it (path tolerance). 1.0 rad/s = the URDF limit;
+# on the real arm set it at or below arm_bringup.py's "rad/s at full PWM" per joint.
+# Wrist pitch + palm roll share the two bevel motors (bevel = pitch +/- roll), so each
+# gets HALF the bevel motor's top speed -- otherwise pitch and roll moving together ask
+# one bevel for more than it can do.
 joint_limits:
   base_link_joint:
     has_velocity_limits: true
-    max_velocity: 3.0
+    max_velocity: 1.0
     has_acceleration_limits: true
     max_acceleration: 2.0
   elbow_link_joint:
     has_velocity_limits: true
-    max_velocity: 2.0
+    max_velocity: 1.0
     has_acceleration_limits: true
     max_acceleration: 2.0
   left_finger_link_joint:
     has_velocity_limits: true
-    max_velocity: 3.0
+    max_velocity: 1.0
     has_acceleration_limits: true
     max_acceleration: 2.0
   palm_link_joint:
     has_velocity_limits: true
-    max_velocity: 3.0
+    max_velocity: 0.5
     has_acceleration_limits: true
     max_acceleration: 2.0
   right_finger_link_joint:
     has_velocity_limits: true
-    max_velocity: 3.0
+    max_velocity: 1.0
     has_acceleration_limits: true
     max_acceleration: 2.0
   shoulder_link_joint:
     has_velocity_limits: true
-    max_velocity: 3.0
+    max_velocity: 1.0
     has_acceleration_limits: true
     max_acceleration: 2.0
   wrist_link_joint:
     has_velocity_limits: true
-    max_velocity: 3.0
+    max_velocity: 0.5
     has_acceleration_limits: true
     max_acceleration: 2.0

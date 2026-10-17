@@ -9,6 +9,8 @@ class SimControlNode : public rclcpp::Node {
         SimControlNode() : rclcpp::Node("sim_control_node") {
             joy_sub = this->create_subscription<sensor_msgs::msg::Joy>("/joy", 10, std::bind(&SimControlNode::joy_callback, this, std::placeholders::_1));
             trajectory_pub = this->create_publisher<trajectory_msgs::msg::JointTrajectory>("/arm_controller/joint_trajectory", 10);
+            // The fingers have their own controller (arm_controller only owns the 5 arm joints).
+            gripper_pub = this->create_publisher<trajectory_msgs::msg::JointTrajectory>("/gripper_controller/joint_trajectory", 10);
             joint_names = {
                 "base_link_joint",
                 "shoulder_link_joint",
@@ -24,6 +26,7 @@ class SimControlNode : public rclcpp::Node {
     private:
         rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub;
         rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr trajectory_pub;
+        rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr gripper_pub;
         std::vector<std::string> joint_names;
         std::vector<double> joint_positions;
         
@@ -45,15 +48,20 @@ void SimControlNode::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg) {
         joint_positions[6] += 0.01;
     }
 
-    auto traj = trajectory_msgs::msg::JointTrajectory();
-    traj.header.stamp = this->get_clock()->now();
-    traj.joint_names = joint_names;
-    
-    trajectory_msgs::msg::JointTrajectoryPoint point;
-    point.positions = joint_positions;
-    point.time_from_start = rclcpp::Duration::from_seconds(0.1);
-    traj.points.push_back(point);
-    trajectory_pub->publish(traj);
+    // Joints 0..4 -> arm_controller, 5..6 (fingers) -> gripper_controller.
+    auto send = [this](rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr pub, size_t first, size_t last) {
+        auto traj = trajectory_msgs::msg::JointTrajectory();
+        traj.header.stamp = this->get_clock()->now();
+        traj.joint_names.assign(joint_names.begin() + first, joint_names.begin() + last);
+
+        trajectory_msgs::msg::JointTrajectoryPoint point;
+        point.positions.assign(joint_positions.begin() + first, joint_positions.begin() + last);
+        point.time_from_start = rclcpp::Duration::from_seconds(0.1);
+        traj.points.push_back(point);
+        pub->publish(traj);
+    };
+    send(trajectory_pub, 0, 5);
+    send(gripper_pub, 5, 7);
 
 }
 

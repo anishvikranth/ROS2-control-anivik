@@ -127,6 +127,8 @@ def generate_launch_description():
             'rviz': LaunchConfiguration('rviz'),
             'ff_gain': LaunchConfiguration('ff_gain'),
             'pwm_deadband': LaunchConfiguration('pwm_deadband'),
+            # The stand sits on Gazebo's floor, ~0.1 m below the stand origin.
+            'collision_floor_z': '-0.1',
         }.items(),
     )
     # Start it only once Gazebo's motors exist, so RoverArmHardware's startup

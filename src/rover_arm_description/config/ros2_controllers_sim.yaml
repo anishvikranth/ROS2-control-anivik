@@ -8,6 +8,9 @@ controller_manager:
     arm_controller:
       type: joint_trajectory_controller/JointTrajectoryController
 
+    gripper_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
 arm_controller:
   ros__parameters:
     joints:
@@ -16,8 +19,6 @@ arm_controller:
       - elbow_link_joint
       - wrist_link_joint
       - palm_link_joint
-      - left_finger_link_joint
-      - right_finger_link_joint
     command_interfaces:
       - position
     state_interfaces:
@@ -26,6 +27,18 @@ arm_controller:
 
     interpolation_method: splines
     allow_partial_joints_goal: true
+
+gripper_controller:
+  ros__parameters:
+    joints:
+      - left_finger_link_joint
+      - right_finger_link_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    interpolation_method: splines
 
 # constraints:
 #       goal_time: 0.6 # seconds allowed to reach the final goal

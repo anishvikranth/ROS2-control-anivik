@@ -44,6 +44,7 @@
   <exec_depend>gz_ros2_control</exec_depend>
   <exec_depend>joy</exec_depend>
   <exec_depend>rclpy</exec_depend>
+  <exec_depend>shape_msgs</exec_depend>
 
   <!-- MoveIt -->
   <depend>moveit_ros_planning_interface</depend>

@@ -76,6 +76,7 @@ install(
   PROGRAMS
     scripts/virtual_esp.py
     scripts/arm_bringup.py
+    scripts/planning_scene_setup.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

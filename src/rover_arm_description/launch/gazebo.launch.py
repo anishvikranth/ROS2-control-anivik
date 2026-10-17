@@ -164,11 +164,17 @@ def generate_launch_description():
         arguments=[LaunchConfiguration('arm_controller')], 
     )
 
+    gripper_controller = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=["gripper_controller"],
+    )
+
     # Delay loading the controllers until after your robot has actually spawned in Gazebo
     delay_controllers = RegisterEventHandler(
         event_handler=OnProcessStart(
             target_action=node_spawn_entity,
-            on_start=[joint_state_broadcaster, arm_controller],
+            on_start=[joint_state_broadcaster, arm_controller, gripper_controller],
         )
     )
     # =======================================================================

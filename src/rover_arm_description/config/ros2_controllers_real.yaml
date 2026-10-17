@@ -10,6 +10,11 @@ controller_manager:
     arm_controller:
       type: joint_trajectory_controller/JointTrajectoryController
 
+    # The two fingers (one shared motor). Separate from the arm so MoveIt and the
+    # joystick can command them independently.
+    gripper_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
     # Joystick sends joint VELOCITIES straight to the hardware -- no position
     # loop. Use this when encoders are unreliable/disconnected (together with
     # open_loop_joints:=...). Spawned INACTIVE; real_arm_teleop_node switches
@@ -37,8 +42,6 @@ arm_controller:
       - elbow_link_joint
       - wrist_link_joint
       - palm_link_joint
-      - left_finger_link_joint
-      - right_finger_link_joint
     command_interfaces:
       - velocity
     state_interfaces:
@@ -49,14 +52,15 @@ arm_controller:
     allow_partial_joints_goal: true
 
 
+    # ff_velocity_scale 1.0: send the trajectory's own velocity, so the PID only corrects
+    # the remaining error. At the default 0.0 the joint must fall behind to move at all
+    # (0.5 rad/s needs 0.1 rad of error at p=5), and fast moves hit the path tolerance.
     gains:
-      base_link_joint:            {p: 5.0, i: 0.0, d: 0.1, i_clamp: 1.0}
-      shoulder_link_joint:        {p: 5.0, i: 0.0, d: 0.1, i_clamp: 1.0}
-      elbow_link_joint:           {p: 5.0, i: 0.0, d: 0.1, i_clamp: 1.0}
-      wrist_link_joint:           {p: 5.0, i: 0.0, d: 0.1, i_clamp: 1.0}
-      palm_link_joint:            {p: 5.0, i: 0.0, d: 0.1, i_clamp: 1.0}
-      left_finger_link_joint:     {p: 5.0, i: 0.0, d: 0.1, i_clamp: 1.0}
-      right_finger_link_joint:    {p: 5.0, i: 0.0, d: 0.1, i_clamp: 1.0}
+      base_link_joint:            {p: 5.0, i: 0.0, d: 0.1, i_clamp: 1.0, ff_velocity_scale: 1.0}
+      shoulder_link_joint:        {p: 5.0, i: 0.0, d: 0.1, i_clamp: 1.0, ff_velocity_scale: 1.0}
+      elbow_link_joint:           {p: 5.0, i: 0.0, d: 0.1, i_clamp: 1.0, ff_velocity_scale: 1.0}
+      wrist_link_joint:           {p: 5.0, i: 0.0, d: 0.1, i_clamp: 1.0, ff_velocity_scale: 1.0}
+      palm_link_joint:            {p: 5.0, i: 0.0, d: 0.1, i_clamp: 1.0, ff_velocity_scale: 1.0}
    
 # Required since command_interfaces is velocity-only: without gains, JTC
 # has no way to convert a position-trajectory error into a velocity
@@ -78,5 +82,22 @@ arm_controller:
       elbow_link_joint:        {trajectory: 0.25, goal: 0.05}
       wrist_link_joint:        {trajectory: 0.25, goal: 0.05}
       palm_link_joint:         {trajectory: 0.25, goal: 0.05}
-      left_finger_link_joint:  {trajectory: 0.4,  goal: 0.1}
-      right_finger_link_joint: {trajectory: 0.4,  goal: 0.1}
+
+gripper_controller:
+  ros__parameters:
+    joints:
+      - left_finger_link_joint
+      - right_finger_link_joint
+    command_interfaces:
+      - velocity
+    state_interfaces:
+      - position
+      - velocity
+    interpolation_method: splines
+    gains:
+      left_finger_link_joint:  {p: 5.0, i: 0.0, d: 0.0, i_clamp: 1.0, ff_velocity_scale: 1.0}
+      right_finger_link_joint: {p: 5.0, i: 0.0, d: 0.0, i_clamp: 1.0, ff_velocity_scale: 1.0}
+    # No tolerances on purpose: when the fingers close on an object they stop short
+    # of the target. With tolerances JTC would give up and hold that position with
+    # ~zero force; without them it keeps squeezing toward the target, with the force
+    # capped by RoverArmHardware's gripper_pwm_limit.

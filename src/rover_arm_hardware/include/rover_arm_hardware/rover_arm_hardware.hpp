@@ -54,6 +54,8 @@ namespace rover_arm_hardware
  *      JUMP    - encoder angle jumped more than max_jump_deg between two readings
  *      REBOOT  - ESP32 uptime went backwards (encoder zero lost) -> all closed-loop motors
  *    The bevel motors fault together, since the differential wrist needs both.
+ *    The gripper is exempt from STALL by default (gripping an object stalls it by design);
+ *    its PWM is capped at gripper_pwm_limit instead, which sets the grip force.
  */
 class RoverArmHardware : public hardware_interface::SystemInterface
 {
@@ -171,6 +173,8 @@ private:
   double pwm_limit_{255.0};
   double ff_gain_{100.0};             // PWM per rad/s of motor velocity (open loop, and closed-loop feed-forward)
   double pwm_deadband_{0.0};          // PWM below which the motors don't move (0 = off)
+  double gripper_pwm_limit_{180.0};   // gripper PWM cap = grip force when squeezing an object
+  bool gripper_stall_fault_{false};   // closing on an object IS a stall, so off by default
   static constexpr double kDeadbandMinCmd = 0.01; // rad/s: only compensate real motion commands
   double encoder_timeout_s_{0.25};    // closed loop: max age of /enc_angles before 0 PWM
   double encoder_wait_s_{10.0};       // on_activate: how long to wait for first /enc_angles

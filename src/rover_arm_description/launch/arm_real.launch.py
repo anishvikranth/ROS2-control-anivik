@@ -1,4 +1,5 @@
 import os
+import xml.etree.ElementTree as ET
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -8,6 +9,30 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from moveit_configs_utils import MoveItConfigsBuilder
+
+
+ARM_JOINTS = ["base_link_joint", "shoulder_link_joint", "elbow_link_joint", "wrist_link_joint", "palm_link_joint"]
+FINGER_JOINTS = ["left_finger_link_joint", "right_finger_link_joint"]
+
+
+def srdf_poses(srdf_xml):
+    """Named poses from the SRDF, as real_arm_teleop_node parameters (the SRDF is the
+    single source of truth for poses, shared with MoveIt)."""
+    root = ET.fromstring(srdf_xml)
+    names, values, gripper = [], [], {}
+    for gs in root.findall("group_state"):
+        joints = {j.get("name"): float(j.get("value")) for j in gs.findall("joint")}
+        if gs.get("group") == "arm" and all(j in joints for j in ARM_JOINTS):
+            names.append(gs.get("name"))
+            values += [joints[j] for j in ARM_JOINTS]
+        elif gs.get("group") == "gripper" and all(j in joints for j in FINGER_JOINTS):
+            gripper[gs.get("name")] = [joints[j] for j in FINGER_JOINTS]
+    return {
+        "pose_names": names,
+        "pose_values": values,
+        "gripper_open": gripper.get("open", []),
+        "gripper_closed": gripper.get("closed", []),
+    }
 
 
 def launch_setup(context):
@@ -74,6 +99,12 @@ def launch_setup(context):
         arguments=["arm_controller", "-c", "/controller_manager"] + (["--inactive"] if open_loop else []),
     )
 
+    gripper_controller_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=["gripper_controller", "-c", "/controller_manager"] + (["--inactive"] if open_loop else []),
+    )
+
     joystick_only_controller_spawner = Node(
         package="controller_manager",
         executable="spawner",
@@ -94,6 +125,7 @@ def launch_setup(context):
                 "time_from_start_s": LaunchConfiguration("time_from_start_s"),
                 "cooldown_s": LaunchConfiguration("cooldown_s"),
                 "start_joystick_only": open_loop,
+                **srdf_poses(moveit_config.robot_description_semantic["robot_description_semantic"]),
             }
         ],
     )
@@ -142,13 +174,23 @@ def launch_setup(context):
         condition=IfCondition(LaunchConfiguration("rviz")),
     )
 
-    return [
+    # Optional collision floor for MoveIt (see planning_scene_setup.py).
+    floor_z = LaunchConfiguration("collision_floor_z").perform(context).strip()
+    scene_setup = [] if floor_z in ("", "none") else [Node(
+        package="rover_arm_description",
+        executable="planning_scene_setup.py",
+        output="screen",
+        parameters=[{"floor_z": float(floor_z)}],
+    )]
+
+    return scene_setup + [
         world_tf,
         moveit_rviz,
         robot_state_publisher,
         ros2_control_node,
         joint_state_broadcaster_spawner,
         arm_controller_spawner,
+        gripper_controller_spawner,
         joystick_only_controller_spawner,
         real_arm_teleop_node,
         move_group,
@@ -182,6 +224,11 @@ def generate_launch_description():
     pwm_deadband_arg = DeclareLaunchArgument(
         "pwm_deadband", default_value="0.0",
         description="PWM below which the motors don't move (0 = no compensation)")
+
+    collision_floor_arg = DeclareLaunchArgument(
+        "collision_floor_z", default_value="none",
+        description="Add a floor at this height (m, world frame) to MoveIt's planning scene; "
+        "'none' = no floor. arm_real_sim sets Gazebo's floor height.")
 
     rviz_arg = DeclareLaunchArgument(
         "rviz", default_value="true", description="Start MoveIt RViz (false on a headless Orin)")
@@ -233,6 +280,7 @@ def generate_launch_description():
             serial_port_arg,
             start_arm_py_arg,
             rviz_arg,
+            collision_floor_arg,
             ff_gain_arg,
             pwm_deadband_arg,
             time_from_start_arg,

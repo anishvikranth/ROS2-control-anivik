@@ -8,6 +8,7 @@
 #include <std_msgs/msg/string.hpp>
 #include <trajectory_msgs/msg/joint_trajectory.hpp>
 #include <algorithm>
+#include <cstdio>
 #include <unordered_map>
 #include <vector>
 #include <string>
@@ -47,6 +48,13 @@
 // | button[2]    | Toggle Joystick-only (open-loop velocity) mode  [param]           |
 // | button[6]    | Step Down k_level (Decrease Sensitivity / Speed)                  |
 // | button[7]    | Step Up k_level (Increase Sensitivity / Speed)                    |
+//
+// --- MODIFIERS (MANUAL mode; while held, the buttons above do NOT do their normal job) ---
+// | LB (4) + A/B/X/Y | Move arm to named pose stow / panel_ready / cache_drop / ground_pick |
+// | LB (4) + Start(7)| Print the current arm pose as an SRDF <group_state> block           |
+// | RB (5) + A / B   | Gripper open / closed (SRDF gripper states)                          |
+// Any arm stick cancels a pose move; the gripper stick cancels a gripper preset.
+// Pose values come from the SRDF (passed in by arm_real.launch.py).
 
 // Highest axis/button index this node reads. Used to bounds-check incoming
 // /joy_arm messages before touching them -- see joy_callback. Bump these if
@@ -63,6 +71,19 @@ public:
         this->declare_parameter<bool>("start_joystick_only", false);
         this->declare_parameter<double>("joy_timeout_s", 0.5);
         this->declare_parameter<std::vector<double>>("velocity_levels", {0.1, 0.25, 0.5});
+        this->declare_parameter<int>("pose_modifier_button", 4);
+        this->declare_parameter<int>("gripper_modifier_button", 5);
+        this->declare_parameter<int>("pose_record_button", 7);
+        // Pose for face buttons A, B, X, Y while the pose modifier is held.
+        this->declare_parameter<std::vector<std::string>>(
+            "pose_buttons", {"stow", "panel_ready", "cache_drop", "ground_pick"});
+        // Filled from the SRDF by the launch file: names + 5 values each (arm joint order).
+        this->declare_parameter<std::vector<std::string>>("pose_names", std::vector<std::string>{});
+        this->declare_parameter<std::vector<double>>("pose_values", std::vector<double>{});
+        this->declare_parameter<std::vector<double>>("gripper_open", std::vector<double>{});
+        this->declare_parameter<std::vector<double>>("gripper_closed", std::vector<double>{});
+        this->declare_parameter<double>("pose_speed", 0.3);     // rad/s of the joint that moves most
+        this->declare_parameter<double>("gripper_speed", 0.5);  // rad/s
         time_from_start_s_ = this->get_parameter("time_from_start_s").as_double();
         cooldown_s_ = this->get_parameter("cooldown_s").as_double();
         joystick_only_button_idx_ =
@@ -72,6 +93,13 @@ public:
         // joystick_only_ mirrors which controller is active. The launch file
         // spawns joystick_only_controller active when start_joystick_only is set.
         joystick_only_ = this->get_parameter("start_joystick_only").as_bool();
+        pose_modifier_button_ = static_cast<size_t>(this->get_parameter("pose_modifier_button").as_int());
+        gripper_modifier_button_ = static_cast<size_t>(this->get_parameter("gripper_modifier_button").as_int());
+        pose_record_button_ = static_cast<size_t>(this->get_parameter("pose_record_button").as_int());
+        pose_buttons_ = this->get_parameter("pose_buttons").as_string_array();
+        pose_speed_ = this->get_parameter("pose_speed").as_double();
+        gripper_speed_ = this->get_parameter("gripper_speed").as_double();
+        load_poses();
 
         joy_sub = this->create_subscription<sensor_msgs::msg::Joy>(
             "/joy_arm", 10,
@@ -82,6 +110,8 @@ public:
 
         trajectory_pub = this->create_publisher<trajectory_msgs::msg::JointTrajectory>(
             "/arm_controller/joint_trajectory", 10);
+        gripper_pub = this->create_publisher<trajectory_msgs::msg::JointTrajectory>(
+            "/gripper_controller/joint_trajectory", 10);
         velocity_pub = this->create_publisher<std_msgs::msg::Float64MultiArray>(
             "/joystick_only_controller/commands", 10);
         arm_state_pub = this->create_publisher<std_msgs::msg::Bool>("/arm_state", 10);
@@ -159,6 +189,7 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub;
     rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_sub;
     rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr trajectory_pub;
+    rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr gripper_pub;
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr velocity_pub;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr arm_state_pub;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr input_space_pub;
@@ -193,6 +224,23 @@ private:
     bool prev_mode_up_btn_ = false;
     bool prev_mode_down_btn_ = false;
     std::vector<int32_t> prev_buttons_;  // for press (rising-edge) detection
+
+    // Named poses / gripper presets (MANUAL mode)
+    static constexpr size_t kArmJoints = 5;  // joint_names[0..4]; [5..6] are the fingers
+    size_t pose_modifier_button_ = 4;
+    size_t gripper_modifier_button_ = 5;
+    size_t pose_record_button_ = 7;
+    std::vector<std::string> pose_buttons_;
+    std::unordered_map<std::string, std::vector<double>> poses_;
+    std::vector<double> gripper_open_, gripper_closed_;
+    double pose_speed_ = 0.3;
+    double gripper_speed_ = 0.5;
+    bool pose_move_active_ = false;
+    std::string pose_move_name_;
+    rclcpp::Time pose_move_end_{0, 0, RCL_ROS_TIME};
+    bool gripper_move_active_ = false;
+    rclcpp::Time gripper_move_end_{0, 0, RCL_ROS_TIME};
+    static constexpr double kStickCancel = 0.1;  // |axis| that cancels a pose / gripper move
     bool joy_lost_ = false;           // edge-triggered "joystick lost" logging
     rclcpp::Time last_joy_lost_log_{0, 0, RCL_ROS_TIME};
     bool joint_states_seen_ = false;
@@ -212,6 +260,12 @@ private:
     void joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg);
     void joint_state_callback(const sensor_msgs::msg::JointState::SharedPtr msg);
     void velocity_timer_callback();
+    void load_poses();
+    bool start_pose_move(const std::string & name, const rclcpp::Time & now);
+    void start_gripper_move(const std::vector<double> & target, const char * label, const rclcpp::Time & now);
+    void print_current_pose();
+    void publish_arm(const rclcpp::Time & now, double duration_s);
+    void publish_gripper(const rclcpp::Time & now, double duration_s);
     void check_joy_link();
     void publish_mode();
     void request_joystick_only(bool enable);
@@ -258,8 +312,10 @@ void RealArmTeleopNode::request_joystick_only(bool enable) {
         return;
     }
     auto request = std::make_shared<controller_manager_msgs::srv::SwitchController::Request>();
-    request->activate_controllers = {enable ? "joystick_only_controller" : "arm_controller"};
-    request->deactivate_controllers = {enable ? "arm_controller" : "joystick_only_controller"};
+    const std::vector<std::string> position_controllers = {"arm_controller", "gripper_controller"};
+    const std::vector<std::string> velocity_controller = {"joystick_only_controller"};
+    request->activate_controllers = enable ? velocity_controller : position_controllers;
+    request->deactivate_controllers = enable ? position_controllers : velocity_controller;
     request->strictness = controller_manager_msgs::srv::SwitchController::Request::STRICT;
     request->activate_asap = true;
     request->timeout = rclcpp::Duration::from_seconds(2.0);
@@ -271,8 +327,14 @@ void RealArmTeleopNode::request_joystick_only(bool enable) {
         velocity_pub->publish(zero);
     }
 
+    auto join = [](const std::vector<std::string> & v) {
+        std::string out;
+        for (const auto & n : v) out += (out.empty() ? "" : " + ") + n;
+        return out;
+    };
     RCLCPP_INFO(this->get_logger(), "Requesting controller switch: activate %s, deactivate %s...",
-                request->activate_controllers[0].c_str(), request->deactivate_controllers[0].c_str());
+                join(request->activate_controllers).c_str(), join(request->deactivate_controllers).c_str());
+    pose_move_active_ = gripper_move_active_ = false;
     switch_pending_ = true;
     switch_request_time_ = this->now();
     switch_client->async_send_request(
@@ -386,6 +448,117 @@ void RealArmTeleopNode::velocity_timer_callback() {
     velocity_pub->publish(cmd);
 }
 
+void RealArmTeleopNode::load_poses() {
+    const auto names = this->get_parameter("pose_names").as_string_array();
+    const auto values = this->get_parameter("pose_values").as_double_array();
+    if (values.size() != names.size() * kArmJoints) {
+        RCLCPP_WARN(this->get_logger(), "pose_names/pose_values mismatch (%zu names, %zu values) -- named poses disabled.",
+                    names.size(), values.size());
+    } else {
+        for (size_t i = 0; i < names.size(); ++i) {
+            poses_[names[i]] = std::vector<double>(values.begin() + i * kArmJoints, values.begin() + (i + 1) * kArmJoints);
+        }
+    }
+    gripper_open_ = this->get_parameter("gripper_open").as_double_array();
+    gripper_closed_ = this->get_parameter("gripper_closed").as_double_array();
+    std::string list;
+    for (size_t i = 0; i < pose_buttons_.size() && i < 4; ++i) {
+        static const char * face[] = {"A", "B", "X", "Y"};
+        list += std::string(list.empty() ? "" : ", ") + "LB+" + face[i] + "=" + pose_buttons_[i] +
+                (poses_.count(pose_buttons_[i]) ? "" : " (NOT IN SRDF)");
+    }
+    RCLCPP_INFO(this->get_logger(), "Named poses: %s. Gripper presets: RB+A=open%s, RB+B=closed%s.", list.c_str(),
+                gripper_open_.size() == 2 ? "" : " (missing)", gripper_closed_.size() == 2 ? "" : " (missing)");
+}
+
+void RealArmTeleopNode::publish_arm(const rclcpp::Time & now, double duration_s) {
+    trajectory_msgs::msg::JointTrajectory traj;
+    traj.header.stamp = now;
+    traj.joint_names.assign(joint_names.begin(), joint_names.begin() + kArmJoints);
+    trajectory_msgs::msg::JointTrajectoryPoint point;
+    point.positions.assign(joint_positions.begin(), joint_positions.begin() + kArmJoints);
+    point.time_from_start = rclcpp::Duration::from_seconds(duration_s);
+    traj.points.push_back(point);
+    trajectory_pub->publish(traj);
+}
+
+void RealArmTeleopNode::publish_gripper(const rclcpp::Time & now, double duration_s) {
+    trajectory_msgs::msg::JointTrajectory traj;
+    traj.header.stamp = now;
+    traj.joint_names.assign(joint_names.begin() + kArmJoints, joint_names.end());
+    trajectory_msgs::msg::JointTrajectoryPoint point;
+    point.positions.assign(joint_positions.begin() + kArmJoints, joint_positions.end());
+    point.time_from_start = rclcpp::Duration::from_seconds(duration_s);
+    traj.points.push_back(point);
+    gripper_pub->publish(traj);
+}
+
+bool RealArmTeleopNode::start_pose_move(const std::string & name, const rclcpp::Time & now) {
+    const auto it = poses_.find(name);
+    if (it == poses_.end()) {
+        RCLCPP_WARN(this->get_logger(), "Pose '%s' is not defined in the SRDF -- ignored.", name.c_str());
+        return false;
+    }
+    double max_delta = 0.0;
+    for (size_t i = 0; i < kArmJoints; ++i) {
+        const auto m = measured_positions_.find(joint_names[i]);
+        if (m == measured_positions_.end()) {
+            RCLCPP_WARN(this->get_logger(), "No /joint_states yet -- can't move to pose '%s'.", name.c_str());
+            return false;
+        }
+        const double target = std::clamp(it->second[i], lower_limits[i], upper_limits[i]);
+        max_delta = std::max(max_delta, std::abs(target - m->second));
+        joint_positions[i] = target;
+    }
+    // Joint-space move: every joint arrives together, the furthest one at pose_speed.
+    const double duration = std::max(max_delta / std::max(pose_speed_, 0.01), 1.0);
+    publish_arm(now, duration);
+    pose_move_active_ = true;
+    pose_move_name_ = name;
+    pose_move_end_ = now + rclcpp::Duration::from_seconds(duration + 0.2);
+    RCLCPP_INFO(this->get_logger(), "Moving to pose '%s' (%.1f s). Any arm stick cancels.", name.c_str(), duration);
+    return true;
+}
+
+void RealArmTeleopNode::start_gripper_move(const std::vector<double> & target, const char * label, const rclcpp::Time & now) {
+    if (target.size() != 2) {
+        RCLCPP_WARN(this->get_logger(), "Gripper '%s' preset missing from the SRDF -- ignored.", label);
+        return;
+    }
+    double max_delta = 0.0;
+    for (size_t k = 0; k < 2; ++k) {
+        const size_t i = kArmJoints + k;
+        const double t = std::clamp(target[k], lower_limits[i], upper_limits[i]);
+        const auto m = measured_positions_.find(joint_names[i]);
+        if (m != measured_positions_.end()) {
+            max_delta = std::max(max_delta, std::abs(t - m->second));
+        }
+        joint_positions[i] = t;
+    }
+    const double duration = std::max(max_delta / std::max(gripper_speed_, 0.01), 0.5);
+    publish_gripper(now, duration);
+    gripper_move_active_ = true;
+    gripper_move_end_ = now + rclcpp::Duration::from_seconds(duration + 0.2);
+    RCLCPP_INFO(this->get_logger(), "Gripper -> %s (%.1f s). Gripper stick cancels.", label, duration);
+}
+
+void RealArmTeleopNode::print_current_pose() {
+    std::string block = "Current arm pose -- paste into rover_arm.srdf and rename:\n"
+                        "    <group_state name=\"NEW_POSE\" group=\"arm\">\n";
+    for (size_t i = 0; i < kArmJoints; ++i) {
+        const auto m = measured_positions_.find(joint_names[i]);
+        if (m == measured_positions_.end()) {
+            RCLCPP_WARN(this->get_logger(), "No /joint_states yet -- can't print the pose.");
+            return;
+        }
+        char line[128];
+        std::snprintf(line, sizeof(line), "        <joint name=\"%s\" value=\"%.3f\"/>\n", joint_names[i].c_str(), m->second);
+        block += line;
+    }
+    block += "    </group_state>";
+    RCLCPP_INFO(this->get_logger(), "%s", block.c_str());
+}
+
 void RealArmTeleopNode::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg) {
     // Guard against malformed/short Joy messages -- msg->axes[...] and
     // msg->buttons[...] below use operator[], which does NOT bounds-check.
@@ -417,9 +590,17 @@ void RealArmTeleopNode::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     auto pressed = [&](size_t idx) {
         return msg->buttons[idx] && !(idx < prev_buttons_.size() && prev_buttons_[idx]);
     };
-    const bool autonomous_pressed = pressed(autonomous_button_idx);
-    const bool joystick_only_pressed = pressed(joystick_only_button_idx_);
-    const bool space_pressed = pressed(space_toggle_button_idx);
+    auto held = [&](size_t idx) { return idx < msg->buttons.size() && msg->buttons[idx]; };
+    const bool pose_mod = held(pose_modifier_button_);
+    const bool grip_mod = held(gripper_modifier_button_);
+    const bool modifier = pose_mod || grip_mod;
+    bool face_pressed[4];
+    for (size_t i = 0; i < 4; ++i) face_pressed[i] = pressed(i);
+    const bool record_pressed = pose_record_button_ < msg->buttons.size() && pressed(pose_record_button_);
+    // While LB/RB is held, A/B/X/Y/Start select poses instead of their normal job.
+    const bool autonomous_pressed = !modifier && pressed(autonomous_button_idx);
+    const bool joystick_only_pressed = !modifier && pressed(joystick_only_button_idx_);
+    const bool space_pressed = !modifier && pressed(space_toggle_button_idx);
     prev_buttons_ = msg->buttons;
 
     // arm_state is published every callback regardless of mode -- this is
@@ -480,8 +661,12 @@ void RealArmTeleopNode::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     space_msg.data = input_space_;
     input_space_pub->publish(space_msg);
 
-    // MODE UP/DOWN (buttons 7/6) -- step-size tier select, edge-triggered
-    if (msg->buttons[mode_down_button_idx]) {
+    // MODE UP/DOWN (buttons 7/6) -- step-size tier select, edge-triggered.
+    // Not while a modifier is held (LB + Start prints the pose instead).
+    if (modifier) {
+        prev_mode_down_btn_ = msg->buttons[mode_down_button_idx];
+        prev_mode_up_btn_ = msg->buttons[mode_up_button_idx];
+    } else if (msg->buttons[mode_down_button_idx]) {
         if (!prev_mode_down_btn_) {
             if (k_index > 0) {
                 k_index--;
@@ -496,7 +681,9 @@ void RealArmTeleopNode::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
         prev_mode_down_btn_ = false;
     }
 
-    if (msg->buttons[mode_up_button_idx]) {
+    if (modifier) {
+        // handled above
+    } else if (msg->buttons[mode_up_button_idx]) {
         if (!prev_mode_up_btn_) {
             if (k_index < k_levels.size() - 1) {
                 k_index++;
@@ -511,7 +698,11 @@ void RealArmTeleopNode::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
         prev_mode_up_btn_ = false;
     }
 
+    const bool any_face = face_pressed[0] || face_pressed[1] || face_pressed[2] || face_pressed[3] || record_pressed;
     if (joystick_only_ || switch_pending_) {
+        if (modifier && any_face) {
+            RCLCPP_WARN(this->get_logger(), "Named poses / gripper presets need MANUAL mode (closed loop).");
+        }
         // Velocities are streamed by velocity_timer_callback.
         return;
     }
@@ -522,20 +713,62 @@ void RealArmTeleopNode::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
         return;
     }
 
+    // Named poses / gripper presets / pose printout.
+    if (pose_mod) {
+        for (size_t i = 0; i < 4 && i < pose_buttons_.size(); ++i) {
+            if (face_pressed[i]) start_pose_move(pose_buttons_[i], now);
+        }
+        if (record_pressed) print_current_pose();
+    }
+    if (grip_mod) {
+        if (face_pressed[0]) start_gripper_move(gripper_open_, "open", now);
+        if (face_pressed[1]) start_gripper_move(gripper_closed_, "closed", now);
+    }
+
+    // A running pose move owns the arm until it ends or an arm stick cancels it.
+    const double arm_stick = std::max({std::abs(msg->axes[0]), std::abs(msg->axes[1]), std::abs(msg->axes[4]),
+                                       std::abs(msg->axes[6]), std::abs(msg->axes[7])});
+    if (pose_move_active_) {
+        if (arm_stick > kStickCancel) {
+            pose_move_active_ = false;
+            resync_targets();  // continue from where the arm actually is
+            RCLCPP_WARN(this->get_logger(), "Pose move '%s' CANCELLED by the stick.", pose_move_name_.c_str());
+        } else if (now >= pose_move_end_) {
+            pose_move_active_ = false;
+            RCLCPP_INFO(this->get_logger(), "Reached pose '%s'.", pose_move_name_.c_str());
+        }
+    }
+    if (gripper_move_active_) {
+        if (msg->axes[3] != 0.0) {
+            gripper_move_active_ = false;
+            for (size_t i = kArmJoints; i < joint_names.size(); ++i) {
+                const auto m = measured_positions_.find(joint_names[i]);
+                if (m != measured_positions_.end()) joint_positions[i] = m->second;
+            }
+            RCLCPP_WARN(this->get_logger(), "Gripper preset CANCELLED by the stick.");
+        } else if (now >= gripper_move_end_) {
+            gripper_move_active_ = false;
+        }
+    }
+
     const double k = k_levels[k_index];
 
     // Joint-space motion -- same axis mapping as sim_control_node.cpp
-    joint_positions[0] += k * msg->axes[0];     // Base
-    joint_positions[1] += k * msg->axes[1];     // Shoulder
-    joint_positions[2] += k * msg->axes[4];     // Elbow
-    joint_positions[3] += k * msg->axes[7];     // Wrist (pitch)
-    joint_positions[4] += k * msg->axes[6];     // Palm (roll)
-    if (msg->axes[3] > 0) {
-        joint_positions[5] += k;
-        joint_positions[6] -= k;
-    } else if (msg->axes[3] < 0) {
-        joint_positions[5] -= k;
-        joint_positions[6] += k;
+    if (!pose_move_active_) {
+        joint_positions[0] += k * msg->axes[0];     // Base
+        joint_positions[1] += k * msg->axes[1];     // Shoulder
+        joint_positions[2] += k * msg->axes[4];     // Elbow
+        joint_positions[3] += k * msg->axes[7];     // Wrist (pitch)
+        joint_positions[4] += k * msg->axes[6];     // Palm (roll)
+    }
+    if (!gripper_move_active_) {
+        if (msg->axes[3] > 0) {
+            joint_positions[5] += k;
+            joint_positions[6] -= k;
+        } else if (msg->axes[3] < 0) {
+            joint_positions[5] -= k;
+            joint_positions[6] += k;
+        }
     }
 
     // Clamp to real joint limits. Also warn (throttled, so a joint held
@@ -553,15 +786,8 @@ void RealArmTeleopNode::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
         }
     }
 
-    auto traj = trajectory_msgs::msg::JointTrajectory();
-    traj.header.stamp = now;
-    traj.joint_names = joint_names;
-
-    trajectory_msgs::msg::JointTrajectoryPoint point;
-    point.positions = joint_positions;
-    point.time_from_start = rclcpp::Duration::from_seconds(time_from_start_s_);
-    traj.points.push_back(point);
-    trajectory_pub->publish(traj);
+    if (!pose_move_active_) publish_arm(now, time_from_start_s_);
+    if (!gripper_move_active_) publish_gripper(now, time_from_start_s_);
 }
 
 int main(int argc, char **argv) {

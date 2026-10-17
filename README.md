@@ -126,6 +126,7 @@ ros2 launch rover_arm_description arm_real.launch.py open_loop_joints:=wrist_lin
 | `pwm_deadband` | `0.0` | Motor deadband compensation (0 = off) |
 | `rviz` | `true` | Start MoveIt RViz (`false` on a headless Orin) |
 | `start_arm_py` | `true` | Start `arm.py` (`arm_real_sim` sets `false`) |
+| `collision_floor_z` | `none` | Add a floor at this height (m, world frame) to MoveIt's planning scene. `arm_real_sim` sets Gazebo's floor (-0.1). On the rover the deck/body should come from the rover model instead |
 | `avatar_repo_path` | `~/AVATAR` | Where `orin_side/arm.py` is run from |
 | `time_from_start_s` | `0.15` | Trajectory point time used by the teleop node |
 | `cooldown_s` | `0.3` | Debounce for the mode buttons |
@@ -137,9 +138,9 @@ ros2 launch rover_arm_description arm_real.launch.py open_loop_joints:=wrist_lin
 
 | Mode | Controller | How the joystick drives the arm | Needs encoders |
 |---|---|---|---|
-| `MANUAL` | `arm_controller` (JointTrajectoryController) | Moves target joint **positions** | Yes |
+| `MANUAL` | `arm_controller` + `gripper_controller` (JointTrajectoryControllers) | Moves target joint **positions** | Yes |
 | `JOYSTICK_ONLY` | `joystick_only_controller` (JointGroupVelocityController) | Sends joint **velocities** straight to the motors, no position loop | No |
-| `AUTONOMOUS` | `arm_controller`, driven by MoveIt | Joystick ignored (except the mode button) | Yes |
+| `AUTONOMOUS` | `arm_controller` + `gripper_controller`, driven by MoveIt | Joystick ignored (except the mode button) | Yes |
 
 Pressing **A** to enter AUTONOMOUS also points RViz's MotionPlanning start and goal state at
 the arm's real pose. RViz doesn't re-sync the planning group's start state by itself (only
@@ -162,7 +163,27 @@ active at a time; the teleop node switches them through the controller manager.
 | `button[2]` | Toggle MANUAL ↔ JOYSTICK_ONLY (param `joystick_only_button_idx`) |
 | `button[6]` / `button[7]` | Speed tier down / up (position step 0.005/0.01/0.02 rad, velocity 0.1/0.25/0.5 rad/s) |
 
-Mode buttons toggle once per press; holding a button does not repeat.
+| **LB** + A / B / X / Y | Go to pose `stow` / `panel_ready` / `cache_drop` / `ground_pick` (MANUAL mode) |
+| **LB** + Start | Print the current arm pose as an SRDF `<group_state>` block |
+| **RB** + A / B | Gripper open / closed |
+
+Mode buttons toggle once per press; holding a button does not repeat. While LB or RB is
+held, A/B/X/Y/Start do **not** do their normal job.
+
+### Named poses and the gripper
+
+The poses live in `rover_arm_moveit_config/config/rover_arm.srdf` (`group_state`), shared by
+MoveIt (RViz goal list) and the joystick. A pose move goes straight there in joint space,
+the joint with furthest to go at `pose_speed` (0.3 rad/s); **any arm stick cancels it**. The
+starting values come from forward kinematics -- `cache_drop` in particular is a placeholder.
+To set a real pose: drive the arm there, press **LB + Start**, paste the printed block into
+the SRDF and rename it (no rebuild needed with `--symlink-install`; restart the launch).
+
+The fingers have their own `gripper_controller`, so MoveIt can command the `arm` and
+`gripper` groups separately. Closing on an object stalls the gripper motor by design, so:
+the gripper is exempt from the STALL fault, its PWM is capped at `gripper_pwm_limit`
+(this sets the grip force), and `gripper_controller` has no tolerances, so it keeps
+squeezing instead of giving up when the fingers stop short.
 
 ### Safety behaviour
 
@@ -182,7 +203,7 @@ fault together because the differential wrist needs both.
 | Fault | Trigger | Usual cause |
 |---|---|---|
 | `RUNAWAY` | Driven one way but moving the other way for `runaway_time_s` | Encoder direction reversed (fix `enc_dir[]` / `dir_dir[]` in `arm.c`) |
-| `STALL` | Move commanded, ≥ 50 % PWM, not moving for `stall_time_s` | Joint blocked, encoder not counting, motor/driver failure |
+| `STALL` | Move commanded, ≥ 50 % PWM, not moving for `stall_time_s` (not the gripper, see above) | Joint blocked, encoder not counting, motor/driver failure |
 | `JUMP` | Encoder jumps more than `max_jump_deg` between readings | Encoder noise/glitch, ESP32 reset |
 | `REBOOT` | ESP32 uptime went backwards (all closed-loop motors) | ESP32 reset: encoder counts restarted from 0, positions are wrong |
 
@@ -204,11 +225,18 @@ incremental, so **the arm must be in its URDF zero pose when the ESP32 powers up
 | `pwm_limit` | 255 | PWM clamp |
 | `ff_gain` | 100 | PWM per rad/s: the whole command in open loop, the feed-forward in closed loop (PWM = ff_gain x velocity + PI correction). Tune in open loop first |
 | `pwm_deadband` | 0 (off) | PWM below which the motors don't move; small commands are scaled up past it while a motion is commanded |
+| `gripper_pwm_limit` | 180 | Gripper PWM cap = grip force on an object |
+| `gripper_stall_fault` | 0 | 1 = also apply the STALL fault to the gripper |
 | `encoder_timeout_s` | 0.25 | Max encoder data age before 0 PWM |
 | `encoder_wait_s` | 10 | Startup wait for the first encoder message |
 | `runaway_time_s`, `stall_time_s`, `max_jump_deg` | 0.5, 1.0, 15 | Fault thresholds (0 disables a check) |
 
 `ff_gain` and `pwm_deadband` can also be set from the launch file without editing the xacro.
+The trajectory controller passes the trajectory's own velocity through
+(`ff_velocity_scale: 1.0`); without it a joint must lag behind to move at all.
+MoveIt's speed limits (`rover_arm_moveit_config/config/joint_limits.yaml`) must not exceed
+what the motors can do: 1.0 rad/s per joint, and 0.5 rad/s for wrist pitch and palm roll
+because they share the two bevel motors. On the real arm set them from `arm_bringup.py`.
 The trajectory controller's PID gains and tracking tolerances (`constraints`) are in
 `config/ros2_controllers_real.yaml`. The tolerances are deliberately loose while the gains
 are untuned; tighten them after tuning.
@@ -315,6 +343,7 @@ ones used in the Arduino IDE.
 ## Known issues
 
 - KDL IK often fails for pose goals on this 5-DOF arm; consider `pick_ik` or position-only IK.
+- MoveIt only knows the arm (and, in sim, the floor). Until the arm is on the rover model, nothing stops it planning through the rover body.
 - The three arm xacros are copies of each other and have drifted (e.g. joint limits in `rover_arm_raw.xacro`).
 - `move_group` logs errors about `DepthImageOctomapUpdater`: `moveit_ros_perception` isn't installed. Harmless until depth-camera obstacle avoidance is needed; then install it or drop `sensors_3d.yaml`.
 - `rover_arm_raw.xacro` uses relative mesh paths from LinkForge, so it can't be shown in RViz directly.

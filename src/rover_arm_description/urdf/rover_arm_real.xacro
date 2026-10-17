@@ -262,6 +262,10 @@
       <!-- PWM below which the motors don't move. Small commands are scaled up past it
            while a motion is commanded. 0 = off; measure on the bench (open loop). -->
       <param name="pwm_deadband">$(arg pwm_deadband)</param>
+      <!-- Gripper: PWM cap = grip force on an object. STALL fault off for the gripper
+           (1 = on), because squeezing an object stalls the motor by design. -->
+      <param name="gripper_pwm_limit">180.0</param>
+      <param name="gripper_stall_fault">0</param>
       <param name="open_loop_joints">$(arg open_loop_joints)</param>
       <!-- Closed loop: motors get 0 PWM if /enc_angles is older than this. -->
       <param name="encoder_timeout_s">0.25</param>

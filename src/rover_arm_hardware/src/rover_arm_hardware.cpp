@@ -85,6 +85,9 @@ hardware_interface::CallbackReturn RoverArmHardware::on_init(
     pwm_limit_ = param_or(hw_params, "pwm_limit", pwm_limit_);
     ff_gain_ = param_or(hw_params, "ff_gain", ff_gain_);
     pwm_deadband_ = std::clamp(param_or(hw_params, "pwm_deadband", pwm_deadband_), 0.0, pwm_limit_);
+    gripper_pwm_limit_ =
+      std::clamp(param_or(hw_params, "gripper_pwm_limit", gripper_pwm_limit_), 0.0, pwm_limit_);
+    gripper_stall_fault_ = param_or(hw_params, "gripper_stall_fault", gripper_stall_fault_ ? 1.0 : 0.0) != 0.0;
     encoder_timeout_s_ = param_or(hw_params, "encoder_timeout_s", encoder_timeout_s_);
     encoder_wait_s_ = param_or(hw_params, "encoder_wait_s", encoder_wait_s_);
     velocity_filter_alpha_ =
@@ -102,10 +105,10 @@ hardware_interface::CallbackReturn RoverArmHardware::on_init(
   RCLCPP_INFO(
     kLogger, "Parameters: kp=%.2f ki=%.2f pwm_limit=%.0f ff_gain=%.1f pwm_deadband=%.0f "
     "encoder_timeout_s=%.2f encoder_wait_s=%.1f velocity_filter_alpha=%.2f runaway_time_s=%.2f "
-    "stall_time_s=%.2f max_jump_deg=%.1f (0 = check disabled)", kp_, ki_, pwm_limit_, ff_gain_,
-    pwm_deadband_,
+    "stall_time_s=%.2f max_jump_deg=%.1f (0 = check disabled) gripper_pwm_limit=%.0f "
+    "gripper_stall_fault=%s", kp_, ki_, pwm_limit_, ff_gain_, pwm_deadband_,
     encoder_timeout_s_, encoder_wait_s_, velocity_filter_alpha_, runaway_time_s_, stall_time_s_,
-    max_jump_deg_);
+    max_jump_deg_, gripper_pwm_limit_, gripper_stall_fault_ ? "true" : "false");
 
   const auto spec_it = info_.hardware_parameters.find("open_loop_joints");
   if (!parse_open_loop_joints(spec_it == info_.hardware_parameters.end() ? "none" : spec_it->second))
@@ -781,7 +784,8 @@ hardware_interface::return_type RoverArmHardware::write(
         set_fault(m, Fault::RUNAWAY, detail);
         pwm = 0.0;
       }
-      else if (stall_time_s_ > 0.0 && stall_timer_s_[m] >= stall_time_s_)
+      else if (stall_time_s_ > 0.0 && stall_timer_s_[m] >= stall_time_s_ &&
+        (m != GRIPPER_MOTOR_IDX || gripper_stall_fault_))
       {
         std::snprintf(
           detail, sizeof(detail), "PWM %.0f for %.2f s but not moving (cmd %.2f rad/s, measured "
@@ -795,7 +799,7 @@ hardware_interface::return_type RoverArmHardware::write(
       // No feedback: stop the motor instead of winding up to full PWM.
       motor_vel_error_integral_[m] = 0.0;
     }
-    if (std::abs(pwm) > pwm_limit_)
+    if (std::abs(pwm) > pwm_limit_ && m != GRIPPER_MOTOR_IDX)  // gripper: squeezing at its cap is normal
     {
       RCLCPP_WARN_THROTTLE(
         kLogger, throttle_clock_, 5000,
@@ -812,6 +816,11 @@ hardware_interface::return_type RoverArmHardware::write(
     {
       const double sign = pwm > 0.0 ? 1.0 : -1.0;
       pwm = sign * (pwm_deadband_ + std::abs(pwm) * (pwm_limit_ - pwm_deadband_) / pwm_limit_);
+    }
+    if (m == GRIPPER_MOTOR_IDX)
+    {
+      // Caps the squeeze when the fingers are blocked by an object.
+      pwm = std::clamp(pwm, -gripper_pwm_limit_, gripper_pwm_limit_);
     }
     msg.data[m] = static_cast<float>(pwm);
 
