@@ -1,0 +1,148 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <ros2_control name="jade_arm_system" type="system">
+    <hardware>
+      <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+    </hardware>
+
+    <joint name="base_link_joint">
+      <command_interface name="position">
+        <param name="min">-1.570795</param>
+        <param name="max">1.570795</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <joint name="shoulder_link_joint">
+      <command_interface name="position">
+        <param name="min">-1.570795</param>
+        <param name="max">0</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <joint name="elbow_link_joint">
+      <command_interface name="position">
+        <param name="min">-3.141593</param>
+        <param name="max">3.141593</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <joint name="wrist_link_joint">
+      <command_interface name="position">
+        <param name="min">-1.570795</param>
+        <param name="max">1.570795</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <!-- continuous joint (wrist roll) — no hard position limit -->
+    <joint name="palm_link_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <!-- ===================== Parallel gripper linkage =====================
+         Only right_finger_back_top_link_joint is truly actuated. Every other
+         finger joint below is mechanically slaved to it (per the <mimic> tags
+         already in jade.urdf) and is exposed here as a mimic joint so
+         gz_ros2_control drives the whole linkage from one command, matching
+         the real kinematics instead of letting each joint be commanded
+         independently. Multipliers/offsets are copied 1:1 from the URDF. -->
+
+    <joint name="right_finger_back_top_link_joint">
+      <command_interface name="position">
+        <param name="min">-0.785398</param>
+        <param name="max">0.523598</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <joint name="right_finger_back_bottom_link_joint">
+      <param name="mimic">right_finger_back_top_link_joint</param>
+      <param name="multiplier">1.0</param>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+
+    <joint name="right_finger_front_bottom_link_joint">
+      <param name="mimic">right_finger_back_top_link_joint</param>
+      <param name="multiplier">1.0</param>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+
+    <joint name="right_finger_front_top_link_joint">
+      <param name="mimic">right_finger_back_top_link_joint</param>
+      <param name="multiplier">1.0</param>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+
+    <joint name="right_finger_link_joint">
+      <param name="mimic">right_finger_back_top_link_joint</param>
+      <param name="multiplier">-1.0</param>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+
+    <joint name="left_finger_back_top_link_joint">
+      <param name="mimic">right_finger_back_top_link_joint</param>
+      <param name="multiplier">-1.0</param>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+
+    <joint name="left_finger_back_bottom_link_joint">
+      <param name="mimic">right_finger_back_top_link_joint</param>
+      <param name="multiplier">-1.0</param>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+
+    <joint name="left_finger_front_bottom_link_joint">
+      <param name="mimic">right_finger_back_top_link_joint</param>
+      <param name="multiplier">-1.0</param>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+
+    <joint name="left_finger_front_top_link_joint">
+      <param name="mimic">right_finger_back_top_link_joint</param>
+      <param name="multiplier">-1.0</param>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+
+    <joint name="left_finger_link_joint">
+      <param name="mimic">right_finger_back_top_link_joint</param>
+      <param name="multiplier">1.0</param>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+
+  </ros2_control>
+
+  <!-- Bridges the above ros2_control interfaces into Gazebo Harmonic.
+       Loads controller_manager with the YAML config you point it at. -->
+  <gazebo>
+    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(find jade_description)/config/rover_controllers.yaml</parameters>
+    </plugin>
+  </gazebo>
+
+</robot>

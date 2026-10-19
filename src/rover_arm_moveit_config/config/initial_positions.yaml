@@ -2,9 +2,8 @@
 
 initial_positions:
   base_link_joint: 0
-  elbow_link_joint: 0
-  left_finger_link_joint: 0
-  palm_link_joint: 0
-  right_finger_link_joint: 0
   shoulder_link_joint: 0
+  elbow_link_joint: 0
   wrist_link_joint: 0
+  palm_link_joint: 0
+  right_finger_back_top_link_joint: 0

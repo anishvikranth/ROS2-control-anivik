@@ -31,8 +31,7 @@ arm_controller:
 gripper_controller:
   ros__parameters:
     joints:
-      - left_finger_link_joint
-      - right_finger_link_joint
+      - right_finger_back_top_link_joint  # the gripper's one actuated joint (rest of the linkage is mimic)
     command_interfaces:
       - position
     state_interfaces:

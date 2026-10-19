@@ -31,8 +31,7 @@ joystick_only_controller:
       - elbow_link_joint
       - wrist_link_joint
       - palm_link_joint
-      - left_finger_link_joint
-      - right_finger_link_joint
+      - right_finger_back_top_link_joint  # the gripper's one actuated joint (rest of the linkage is mimic)
 
 arm_controller:
   ros__parameters:
@@ -86,8 +85,7 @@ arm_controller:
 gripper_controller:
   ros__parameters:
     joints:
-      - left_finger_link_joint
-      - right_finger_link_joint
+      - right_finger_back_top_link_joint  # the gripper's one actuated joint (rest of the linkage is mimic)
     command_interfaces:
       - velocity
     state_interfaces:
@@ -95,8 +93,7 @@ gripper_controller:
       - velocity
     interpolation_method: splines
     gains:
-      left_finger_link_joint:  {p: 5.0, i: 0.0, d: 0.0, i_clamp: 1.0, ff_velocity_scale: 1.0}
-      right_finger_link_joint: {p: 5.0, i: 0.0, d: 0.0, i_clamp: 1.0, ff_velocity_scale: 1.0}
+      right_finger_back_top_link_joint: {p: 5.0, i: 0.0, d: 0.0, i_clamp: 1.0, ff_velocity_scale: 1.0}
     # No tolerances on purpose: when the fingers close on an object they stop short
     # of the target. With tolerances JTC would give up and hold that position with
     # ~zero force; without them it keeps squeezing toward the target, with the force

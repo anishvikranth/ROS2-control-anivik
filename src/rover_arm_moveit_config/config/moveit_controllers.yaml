@@ -21,7 +21,6 @@ moveit_simple_controller_manager:
   gripper_controller:
     type: FollowJointTrajectory
     joints:
-      - left_finger_link_joint
-      - right_finger_link_joint
+      - right_finger_back_top_link_joint  # the gripper's one actuated joint (rest of the linkage is mimic)
     action_ns: follow_joint_trajectory
     default: true

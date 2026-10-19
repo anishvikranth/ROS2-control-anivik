@@ -7,6 +7,7 @@ Panels:
         - /Global Options1
         - /RobotModel1
         - /TF1
+        - /Image1
       Splitter Ratio: 0.5
     Tree Height: 485
   - Class: rviz_common/Selection
@@ -66,6 +67,16 @@ Visualization Manager:
         Expand Link Details: false
         Expand Tree: false
         Link Tree Style: Links in Alphabetic Order
+        back_left_wheel_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        back_right_wheel_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
         base_link:
           Alpha: 1
           Show Axes: false
@@ -85,12 +96,17 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        elbow_link_new:
+        elbow_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        left_back_wheel_link:
+        front_left_wheel_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        front_right_wheel_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -99,17 +115,28 @@ Visualization Manager:
           Alpha: 1
           Show Axes: false
           Show Trail: false
+          Value: true
+        left_finger_back_bottom_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        left_finger_back_top_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        left_finger_front_bottom_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        left_finger_front_top_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
         left_finger_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        left_front_wheel_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        left_middle_wheel_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -119,12 +146,17 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        palm_link:
+        middle_left_wheel_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        right_back_wheel_link:
+        middle_right_wheel_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        palm_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -134,17 +166,27 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
+        right_finger_back_bottom_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        right_finger_back_top_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        right_finger_front_bottom_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        right_finger_front_top_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
         right_finger_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        right_front_wheel_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        right_middle_wheel_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -165,6 +207,11 @@ Visualization Manager:
           Show Trail: false
           Value: true
         wrist_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        zed_camera_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -182,6 +229,10 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
+        back_left_wheel_link:
+          Value: true
+        back_right_wheel_link:
+          Value: true
         base_link:
           Value: true
         camera_mount_link:
@@ -190,31 +241,45 @@ Visualization Manager:
           Value: true
         chassis_link:
           Value: true
-        elbow_link_new:
+        elbow_link:
           Value: true
-        left_back_wheel_link:
+        front_left_wheel_link:
+          Value: true
+        front_right_wheel_link:
           Value: true
         left_bogie_link:
           Value: true
+        left_finger_back_bottom_link:
+          Value: true
+        left_finger_back_top_link:
+          Value: true
+        left_finger_front_bottom_link:
+          Value: true
+        left_finger_front_top_link:
+          Value: true
         left_finger_link:
-          Value: true
-        left_front_wheel_link:
-          Value: true
-        left_middle_wheel_link:
           Value: true
         left_rocker_link:
           Value: true
-        palm_link:
+        middle_left_wheel_link:
           Value: true
-        right_back_wheel_link:
+        middle_right_wheel_link:
+          Value: true
+        odom:
+          Value: true
+        palm_link:
           Value: true
         right_bogie_link:
           Value: true
+        right_finger_back_bottom_link:
+          Value: true
+        right_finger_back_top_link:
+          Value: true
+        right_finger_front_bottom_link:
+          Value: true
+        right_finger_front_top_link:
+          Value: true
         right_finger_link:
-          Value: true
-        right_front_wheel_link:
-          Value: true
-        right_middle_wheel_link:
           Value: true
         right_rocker_link:
           Value: true
@@ -224,42 +289,62 @@ Visualization Manager:
           Value: true
         wrist_link:
           Value: true
+        zed_camera_link:
+          Value: true
       Marker Scale: 0.25
       Name: TF
       Show Arrows: true
       Show Axes: true
-      Show Names: true
+      Show Names: false
       Tree:
         chassis_footprint:
           chassis_link:
             left_rocker_link:
-              left_back_wheel_link:
+              back_left_wheel_link:
                 {}
               left_bogie_link:
-                left_front_wheel_link:
+                front_left_wheel_link:
                   {}
-                left_middle_wheel_link:
+                middle_left_wheel_link:
                   {}
             right_rocker_link:
-              right_back_wheel_link:
+              back_right_wheel_link:
                 {}
               right_bogie_link:
-                right_front_wheel_link:
+                front_right_wheel_link:
                   {}
-                right_middle_wheel_link:
+                middle_right_wheel_link:
                   {}
             stand_link:
               base_link:
                 shoulder_link:
-                  elbow_link_new:
+                  elbow_link:
                     wrist_link:
                       palm_link:
                         camera_mount_link:
                           {}
-                        left_finger_link:
+                        left_finger_back_bottom_link:
                           {}
-                        right_finger_link:
+                        left_finger_back_top_link:
+                          left_finger_link:
+                            {}
+                        left_finger_front_bottom_link:
                           {}
+                        left_finger_front_top_link:
+                          {}
+                        right_finger_back_bottom_link:
+                          right_finger_link:
+                            {}
+                        right_finger_back_top_link:
+                          {}
+                        right_finger_front_bottom_link:
+                          {}
+                        right_finger_front_top_link:
+                          {}
+              zed_camera_link:
+                {}
+        odom:
+          {}
       Update Interval: 0
       Value: true
     - Class: rviz_default_plugins/Image
@@ -274,12 +359,12 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /gripper_camera/image
+        Value: /gripper/image
       Value: false
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: chassis_footprint
+    Fixed Frame: odom
     Frame Rate: 30
   Name: root
   Tools:
@@ -322,7 +407,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 1.855960726737976
+      Distance: 3.0021586418151855
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -337,10 +422,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.3997974991798401
+      Pitch: 0.2553993761539459
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 4.825517177581787
+      Yaw: 0.2504947781562805
     Saved: ~
 Window Geometry:
   Displays:

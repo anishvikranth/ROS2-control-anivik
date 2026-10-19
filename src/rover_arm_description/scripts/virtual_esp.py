@@ -36,7 +36,7 @@ NUM_MOTORS = 6
 MOTOR_NAMES = ["base", "shoulder", "elbow", "bevel1", "bevel2", "gripper"]
 JOINTS = [
     "base_link_joint", "shoulder_link_joint", "elbow_link_joint", "wrist_link_joint",
-    "palm_link_joint", "left_finger_link_joint", "right_finger_link_joint",
+    "palm_link_joint", "right_finger_back_top_link_joint",  # gripper: one actuated joint
 ]
 PWM_MAX = 255.0
 COUNTS_PER_DEG = 1000.0  # only for /enc_counts; the real factors live in arm.c
@@ -148,12 +148,12 @@ class VirtualEsp(Node):
     @staticmethod
     def motor_angles_from_joints(q):
         # Same mapping as RoverArmHardware (inverse of its forward kinematics).
-        base, shoulder, elbow, pitch, roll, left, _right = q
-        return [base, shoulder, elbow, pitch + roll, pitch - roll, left]
+        base, shoulder, elbow, pitch, roll, gripper = q
+        return [base, shoulder, elbow, pitch + roll, pitch - roll, gripper]
 
     @staticmethod
     def joint_vels_from_motors(v):
-        return [v[0], v[1], v[2], (v[3] + v[4]) / 2.0, (v[3] - v[4]) / 2.0, v[5], -v[5]]
+        return [v[0], v[1], v[2], (v[3] + v[4]) / 2.0, (v[3] - v[4]) / 2.0, v[5]]
 
     def pwm_to_speed(self, m, pwm):
         deadband = self.get_parameter("pwm_deadband").value

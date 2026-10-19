@@ -57,7 +57,8 @@ def generate_launch_description():
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([FindPackageShare('ros_gz_sim'), 'launch', 'gz_sim.launch.py'])
         ]),
-        launch_arguments={'gz_args': f'-r empty.sdf'}.items()
+        # worlds/world.sdf: DART physics (see the note in the file), sensors, lighting, ground.
+        launch_arguments={'gz_args': '-r ' + os.path.join(pkg_share, 'worlds', 'world.sdf')}.items()
     )
 
     # 3b. Gazebo Cube Spawner

@@ -1,553 +1,83 @@
 <?xml version="1.0"?>
+<!-- Gazebo variant of the arm: the shared description (rover_arm.xacro) + a world link +
+     Gazebo's ros2_control. Used by gazebo.launch.py, arm_real_sim.launch.py (velocity, /gz)
+     and, with use_gazebo_ros2_control:=false, by the MoveIt demo. -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="rover_arm">
+
   <xacro:arg name="use_gazebo_ros2_control" default="true"/>
-  <!-- position (default, gazebo.launch.py) or velocity (arm_real_sim.launch.py: the
-       real-arm stack drives Gazebo through virtual_esp.py, which commands velocities). -->
+  <!-- position (gazebo.launch.py) or velocity (arm_real_sim.launch.py, driven by virtual_esp.py) -->
   <xacro:arg name="gz_command_interface" default="position"/>
   <xacro:property name="gz_cmd_velocity" value="${'$(arg gz_command_interface)' == 'velocity'}"/>
-  <!-- Namespace + controller file for Gazebo's own controller manager. arm_real_sim
-       uses /gz so it doesn't clash with the real stack's /controller_manager. -->
+  <!-- Namespace + controller file for Gazebo's own controller manager (arm_real_sim uses /gz). -->
   <xacro:arg name="gz_namespace" default=""/>
   <xacro:arg name="gz_controllers_file" default="ros2_controllers_sim.yaml"/>
 
-  <xacro:macro name="aluminum_material" params="link_name">
-    <gazebo reference="${link_name}">
-      <visual>
-        <material>
-          <ambient>0.6 0.6 0.6 1.0</ambient>
-          <diffuse>0.7 0.7 0.7 1.0</diffuse>
-          <specular>0.8 0.8 0.8 1.0</specular>
-        </material>
-      </visual>
-      <mu1>0.5</mu1>
-      <mu2>0.6</mu2>
-    </gazebo>
-  </xacro:macro>
+  <xacro:include filename="$(find rover_arm_description)/urdf/rover_arm.xacro"/>
 
-  <xacro:macro name="blue_pla" params="link_name">
-    <gazebo reference="${link_name}">
-      <visual>
-        <material>
-          <ambient>0.68 0.85 0.90 1.0</ambient>
-          <diffuse>0.68 0.85 0.90 1.0</diffuse>
-          <specular>0.2 0.2 0.2 1.0</specular>
-        </material>
-      </visual>
-    </gazebo>
-  </xacro:macro>
-
-  <xacro:macro name="zed_black" params="link_name">
-    <gazebo reference="${link_name}">
-      <visual>
-        <material>
-          <ambient>0.1 0.1 0.1 1.0</ambient>
-          <diffuse>0.15 0.15 0.15 1.0</diffuse>
-          <specular>0.4 0.4 0.4 1.0</specular>
-        </material>
-      </visual>
-    </gazebo>
-  </xacro:macro>
-
-  <link name="world" />
-
-  <link name="base_link">
-    <inertial>
-      <origin xyz="0.001193 0.001028 0.047499" rpy="0 0 -1.570796" />
-      <mass value="1.062" />
-      <inertia ixx="0.001357" ixy="0" ixz="0" iyy="0.001521" iyz="0" izz="0.001281" />
-    </inertial>
-    <visual>
-      <origin xyz="0.001193 0.001028 0.047499" rpy="0 0 0" />
-      <geometry>
-        <mesh filename="package://rover_arm_description/urdf/meshes/base_link_visual.stl" />
-      </geometry>
-    </visual>
-    <collision>
-      <origin xyz="0.001193 0.001028 0.047499" rpy="0 0 -1.570796" />
-      <geometry>
-        <box size="0.090314 0.079456 0.094999" />
-      </geometry>
-    </collision>
-  </link>
-  <xacro:aluminum_material link_name="base_link"/>
-
-  <link name="elbow_link">
-    <inertial>
-      <origin xyz="0.139619 -0.000409 0.08721" rpy="1.570796 0 -1.570796" />
-      <mass value="2.571" />
-      <inertia ixx="0.042429" ixy="0" ixz="0" iyy="0.039541" iyz="0" izz="0.010207" />
-    </inertial>
-    <visual>
-      <origin xyz="0.139619 -0.000409 0.08721" rpy="-1.570796 1.570796 0" />
-      <geometry>
-        <mesh filename="package://rover_arm_description/urdf/meshes/elbow_link_visual.stl" />
-      </geometry>
-    </visual>
-    <collision>
-      <origin xyz="0.139619 -0.000409 0.08721" rpy="1.570796 0 -1.570796" />
-      <geometry>
-        <box size="0.130697 0.174815 0.409236" />
-      </geometry>
-    </collision>
-  </link>
-  <xacro:aluminum_material link_name="elbow_link"/>
-
-  <link name="left_finger_link">
-    <inertial>
-      <origin xyz="-0.013622 -0.083285 0" rpy="0 0 -3.141593" />
-      <mass value="0.132" />
-      <inertia ixx="0.000455" ixy="0" ixz="0" iyy="0.000455" iyz="0" izz="0.000455" />
-    </inertial>
-    <visual>
-      <origin xyz="-0.013622 -0.083285 0" rpy="0 0 0" />
-      <geometry>
-        <mesh filename="package://rover_arm_description/urdf/meshes/left_finger_link_visual.stl" />
-      </geometry>
-    </visual>
-    <collision>
-      <origin xyz="-0.013622 -0.083285 0" rpy="0 0 -3.141593" />
-      <geometry>
-        <mesh filename="package://rover_arm_description/urdf/meshes/left_finger_link_collision.stl" />
-      </geometry>
-    </collision>
-  </link>
-  <xacro:aluminum_material link_name="left_finger_link"/>
-
-  <link name="palm_link">
-    <inertial>
-      <origin xyz="-0.003068 0.039999 0" rpy="0 0 1.570796" />
-      <mass value="0.453" />
-      <inertia ixx="0.000454" ixy="0" ixz="0" iyy="0.000454" iyz="0" izz="0.000483" />
-    </inertial>
-    <visual>
-      <origin xyz="-0.003068 0.039999 0" rpy="0 0 3.141593" />
-      <geometry>
-        <mesh filename="package://rover_arm_description/urdf/meshes/palm_link_visual.stl" />
-      </geometry>
-    </visual>
-    <collision>
-      <origin xyz="-0.003068 0.039999 0" rpy="0 0 1.570796" />
-      <geometry>
-        <box size="0.079999 0.079998 0.074999" />
-      </geometry>
-    </collision>
-  </link>
-  <xacro:aluminum_material link_name="palm_link"/>
-
-  <link name="right_finger_link">
-    <inertial>
-      <origin xyz="0.013622 -0.083285 0" rpy="3.141593 0 0" />
-      <mass value="0.132" />
-      <inertia ixx="0.000455" ixy="0" ixz="0" iyy="0.000455" iyz="0" izz="0.000455" />
-    </inertial>
-    <visual>
-      <origin xyz="0.013622 -0.083285 0" rpy="0 0 0" />
-      <geometry>
-        <mesh filename="package://rover_arm_description/urdf/meshes/right_finger_link_visual.stl" />
-      </geometry>
-    </visual>
-    <collision>
-      <origin xyz="0.013622 -0.083285 0" rpy="3.141593 0 0" />
-      <geometry>
-        <mesh filename="package://rover_arm_description/urdf/meshes/right_finger_link_collision.stl" />
-      </geometry>
-    </collision>
-  </link>
-  <xacro:aluminum_material link_name="right_finger_link"/>
-
-  <link name="shoulder_link">
-    <inertial>
-      <origin xyz="0 -0.208547 0.0205" rpy="0 0 0" />
-      <mass value="0.505" />
-      <inertia ixx="0.009733" ixy="0" ixz="0" iyy="0.000482" iyz="0" izz="0.009859" />
-    </inertial>
-    <visual>
-      <origin xyz="-0.0205 -0.208547 0" rpy="0 -3.141593 0" />
-      <geometry>
-        <mesh filename="package://rover_arm_description/urdf/meshes/shoulder_link_visual.stl" />
-      </geometry>
-    </visual>
-    <collision>
-      <origin xyz="0 -0.208547 0.0205" rpy="0 0 0" />
-      <geometry>
-        <box size="0.084999 0.476494 0.064999" />
-      </geometry>
-    </collision>
-  </link>
-  <xacro:aluminum_material link_name="shoulder_link"/>
-
-  <link name="stand_link">
-    <inertial>
-      <origin xyz="0.035906 -0.000442 0.0135" rpy="0 0 0" />
-      <mass value="1.897" />
-      <inertia ixx="0.003948" ixy="0" ixz="0" iyy="0.009139" iyz="0" izz="0.00861" />
-    </inertial>
-    <visual>
-      <origin xyz="0.035906 -0.000442 0.0135" rpy="0 0 0" />
-      <geometry>
-        <mesh filename="package://rover_arm_description/urdf/meshes/stand_link_visual.stl" />
-      </geometry>
-    </visual>
-    <collision>
-      <origin xyz="0.035906 -0.000442 0.0135" rpy="0 0 0" />
-      <geometry>
-        <box size="0.20892 0.104 0.119" />
-      </geometry>
-    </collision>
-  </link>
-  <xacro:aluminum_material link_name="stand_link"/>
-
-  <link name="wrist_link">
-    <inertial>
-      <origin xyz="0 -0.064871 0" rpy="0 1.570796 0" />
-      <mass value="0.45" />
-      <inertia ixx="0.001685" ixy="0" ixz="0" iyy="0.000436" iyz="0" izz="0.001617" />
-    </inertial>
-    <visual>
-      <origin xyz="0 -0.06487 0" rpy="0 -3.141593 0" />
-      <geometry>
-        <mesh filename="package://rover_arm_description/urdf/meshes/wrist_link_visual.stl" />
-      </geometry>
-    </visual>
-    <collision>
-      <origin xyz="0 -0.064871 0" rpy="0 1.570796 0" />
-      <geometry>
-        <box size="0.069999 0.195497 0.081999" />
-      </geometry>
-    </collision>
-  </link>
-  <xacro:aluminum_material link_name="wrist_link"/>
-
-  <link name="camera_mount_link">
-    <inertial>
-      <origin xyz="0 0.02205 0.00615" rpy="0 0 0" />
-      <mass value="0.15" />
-      <inertia ixx="0.000037" ixy="0" ixz="0" iyy="0.000076" iyz="0" izz="0.000088" />
-    </inertial>
-    <visual>
-      <origin xyz="0 0.02205 0.00615" rpy="0 0 0" />
-      <geometry>
-        <mesh filename="package://rover_arm_description/urdf/meshes/camera_mount_link_visual.stl" />
-      </geometry>
-    </visual>
-    <collision>
-      <origin xyz="0 0.02205 0.00615" rpy="0 0 0" />
-      <geometry>
-        <box size="0.071199 0.044099 0.0323" />
-      </geometry>
-    </collision>
-  </link>
-  <xacro:blue_pla link_name="camera_mount_link"/>
-
-  <link name="gripper_camera_optical_frame"/>
-
-  <link name="zed_camera_link">
-    <!-- NOTE: this block was truncated when originally read in-session and has been
-         best-effort reconstructed from rover_arm_raw.xacro's equivalent link.
-         Please verify against your own source before trusting it. -->
-    <inertial>
-      <origin xyz="0 0 0" rpy="0 0 0" />
-      <mass value="0.229" />
-      <inertia ixx="0.000622" ixy="0" ixz="0" iyy="0.000053" iyz="0" izz="0.000604" />
-    </inertial>
-    <visual>
-      <origin xyz="0.02155 0 0" rpy="0 0 0" />
-      <geometry>
-        <mesh filename="package://rover_arm_description/urdf/meshes/zed_camera_link_visual.stl" />
-      </geometry>
-    </visual>
-    <collision>
-      <origin xyz="0.02155 0 0" rpy="0 -1.570796 0" />
-      <geometry>
-        <box size="0.0303 0.1753 0.0431" />
-      </geometry>
-    </collision>
-  </link>
-  <xacro:zed_black link_name="zed_camera_link"/>
-
-  <joint name="stand_link_joint" type="fixed">
-    <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
-    <parent link="world" />
-    <child link="stand_link" />
-  </joint>
-  <joint name="base_link_joint" type="revolute">
-    <origin xyz="-0.03596 0.000387 0.0595" rpy="0 0 0" />
-    <parent link="stand_link" />
-    <child link="base_link" />
-    <axis xyz="0 0 1" />
-    <limit effort="34.32" velocity="1" lower="-1.570795" upper="1.570795" />
-  </joint>
-  <joint name="elbow_link_joint" type="revolute">
-    <origin xyz="-0.049999 -0.404295 0" rpy="-1.570797 0 -1.570796" />
-    <parent link="shoulder_link" />
-    <child link="elbow_link" />
-    <axis xyz="0 0 1" />
-    <limit effort="123.559998" velocity="1" lower="-3.141593" upper="3.141593" />
-  </joint>
-  <joint name="left_finger_link_joint" type="revolute">
-    <origin xyz="0.024931 0.032 0" rpy="0 0 -3.141593" />
-    <parent link="palm_link" />
-    <child link="left_finger_link" />
-    <axis xyz="0 0 1" />
-    <limit effort="5.15" velocity="1" lower="-1.570795" upper="0.785398" />
-  </joint>
-  <joint name="palm_link_joint" type="revolute">
-    <origin xyz="-0.000022 -0.162619 -0.00015" rpy="3.141593 0 0" />
-    <parent link="wrist_link" />
-    <child link="palm_link" />
-    <axis xyz="0 1 0" />
-    <limit effort="10" velocity="1" lower="-3.141593" upper="3.141593" />
-  </joint>
-  <joint name="right_finger_link_joint" type="revolute">
-    <origin xyz="-0.025098 0.032462 -0.002467" rpy="0 0 3.141593" />
-    <parent link="palm_link" />
-    <child link="right_finger_link" />
-    <axis xyz="0 0 1" />
-    <limit effort="5.15" velocity="1" lower="-0.785398" upper="1.570795" />
-  </joint>
-  <joint name="shoulder_link_joint" type="revolute">
-    <origin xyz="0.040749 -0.000139 0.044051" rpy="0 3.141593 0" />
-    <parent link="base_link" />
-    <child link="shoulder_link" />
-    <axis xyz="1 0 0" />
-    <limit effort="137.300003" velocity="1" lower="-0.3927" upper="1.5708" />
-  </joint>
-  <joint name="wrist_link_joint" type="revolute">
-    <origin xyz="0.266997 -0.000647 0.102497" rpy="1.570796 -1.570796 0" />
-    <parent link="elbow_link" />
-    <child link="wrist_link" />
-    <axis xyz="1 0 0" />
-    <limit effort="27.459999" velocity="1" lower="-1.570795" upper="1.570795" />
-  </joint>
-  <joint name="camera_mount_link_joint" type="fixed">
-    <origin xyz="-0.000069 0 0.0375" rpy="0 0 0" />
-    <parent link="palm_link" />
-    <child link="camera_mount_link" />
-  </joint>
-  <joint name="camera_optical_joint" type="fixed">
-    <origin xyz="0 0.02 0.035" rpy="0 ${pi/15} 1.57079632679"/>
-    <parent link="camera_mount_link"/>
-    <child link="gripper_camera_optical_frame"/>
-  </joint>
-  <joint name="zed_camera_link_joint" type="fixed">
-    <origin xyz="-0.000054 -0.052442 -0.01515" rpy="0 0 1.570796" />
-    <parent link="stand_link" />
-    <child link="zed_camera_link" />
-  </joint>
-  <link name="zed_camera_optical_frame"/>
-  <joint name="zed_camera_optical_frame_joint" type="fixed">
-    <origin xyz="0.0 0.0 0.0" rpy="${-pi/2} 0.0 ${pi/2}"/>
-    <parent link="zed_camera_link"/>
-    <child link="zed_camera_optical_frame"/>
+  <link name="world"/>
+  <joint name="world_fixed_joint" type="fixed">
+    <parent link="world"/>
+    <child link="stand_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
   </joint>
 
-  <!-- Gazebo's ros2_control hardware + plugin. Set use_gazebo_ros2_control:=false when
-       this file is included for something else (e.g. the MoveIt demo, which adds its own
-       mock ros2_control block) so there is only one hardware block for these joints. -->
   <xacro:if value="$(arg use_gazebo_ros2_control)">
-  <ros2_control name="GazeboSimSystem" type="system">
-    <hardware>
-      <plugin>gz_ros2_control/GazeboSimSystem</plugin>
-    </hardware>
-    
-    <joint name="base_link_joint">
-      <xacro:if value="${gz_cmd_velocity}">
-        <command_interface name="velocity"/>
-      </xacro:if>
-      <xacro:unless value="${gz_cmd_velocity}">
-        <command_interface name="position">
-          <param name="min">-1.570795</param>
-          <param name="max">1.570795</param>
-        </command_interface>
-      </xacro:unless>
-      <state_interface name="position"/>
-      <state_interface name="velocity"/>
-    </joint>
+    <xacro:macro name="gz_joint" params="name lower upper">
+      <joint name="${name}">
+        <xacro:if value="${gz_cmd_velocity}">
+          <command_interface name="velocity"/>
+        </xacro:if>
+        <xacro:unless value="${gz_cmd_velocity}">
+          <command_interface name="position">
+            <param name="min">${lower}</param>
+            <param name="max">${upper}</param>
+          </command_interface>
+        </xacro:unless>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+    </xacro:macro>
+    <!-- Passive gripper linkage: follows right_finger_back_top_link_joint through the
+         URDF <mimic> tags (ros2_control 4.x style: mimic="true", no command interface). -->
+    <xacro:macro name="gz_mimic" params="name">
+      <joint name="${name}" mimic="true">
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+    </xacro:macro>
 
-    <joint name="shoulder_link_joint">
-      <xacro:if value="${gz_cmd_velocity}">
-        <command_interface name="velocity"/>
-      </xacro:if>
-      <xacro:unless value="${gz_cmd_velocity}">
-        <command_interface name="position">
-          <param name="min">-0.3927</param>
-          <param name="max">1.5708</param>
-        </command_interface>
-      </xacro:unless>
-      <state_interface name="position"/>
-      <state_interface name="velocity"/>
-    </joint>
-    
-    <joint name="elbow_link_joint">
-      <xacro:if value="${gz_cmd_velocity}">
-        <command_interface name="velocity"/>
-      </xacro:if>
-      <xacro:unless value="${gz_cmd_velocity}">
-        <command_interface name="position">
-          <param name="min">-3.141593</param>
-          <param name="max">3.141593</param>
-        </command_interface>
-      </xacro:unless>
-      <state_interface name="position"/>
-      <state_interface name="velocity"/>
-    </joint>
+    <ros2_control name="GazeboSimSystem" type="system">
+      <hardware>
+        <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+      </hardware>
+      <xacro:gz_joint name="base_link_joint" lower="-1.570795" upper="1.570795"/>
+      <xacro:gz_joint name="shoulder_link_joint" lower="-1.570795" upper="0.3927"/>
+      <xacro:gz_joint name="elbow_link_joint" lower="-3.141593" upper="3.141593"/>
+      <xacro:gz_joint name="wrist_link_joint" lower="-1.570795" upper="1.570795"/>
+      <xacro:gz_joint name="palm_link_joint" lower="-6.283185" upper="6.283185"/>
+      <!-- the gripper's one actuated joint -->
+      <xacro:gz_joint name="right_finger_back_top_link_joint" lower="-0.785398" upper="0.523598"/>
+      <xacro:gz_mimic name="right_finger_back_bottom_link_joint"/>
+      <xacro:gz_mimic name="right_finger_front_bottom_link_joint"/>
+      <xacro:gz_mimic name="right_finger_front_top_link_joint"/>
+      <xacro:gz_mimic name="right_finger_link_joint"/>
+      <xacro:gz_mimic name="left_finger_back_top_link_joint"/>
+      <xacro:gz_mimic name="left_finger_back_bottom_link_joint"/>
+      <xacro:gz_mimic name="left_finger_front_bottom_link_joint"/>
+      <xacro:gz_mimic name="left_finger_front_top_link_joint"/>
+      <xacro:gz_mimic name="left_finger_link_joint"/>
+    </ros2_control>
 
-    <joint name="wrist_link_joint">
-      <xacro:if value="${gz_cmd_velocity}">
-        <command_interface name="velocity"/>
-      </xacro:if>
-      <xacro:unless value="${gz_cmd_velocity}">
-        <command_interface name="position">
-          <param name="min">-1.570795</param>
-          <param name="max">1.570795</param>
-        </command_interface>
-      </xacro:unless>
-      <state_interface name="position"/>
-      <state_interface name="velocity"/>
-    </joint>
-
-    <joint name="palm_link_joint">
-      <xacro:if value="${gz_cmd_velocity}">
-        <command_interface name="velocity"/>
-      </xacro:if>
-      <xacro:unless value="${gz_cmd_velocity}">
-        <command_interface name="position">
-          <param name="min">-3.141593</param>
-          <param name="max">3.141593</param>
-        </command_interface>
-      </xacro:unless>
-      <state_interface name="position"/>
-      <state_interface name="velocity"/>
-    </joint>
-  
-    <joint name="left_finger_link_joint">
-      <xacro:if value="${gz_cmd_velocity}">
-        <command_interface name="velocity"/>
-      </xacro:if>
-      <xacro:unless value="${gz_cmd_velocity}">
-        <command_interface name="position">
-          <param name="min">-1.570795</param>
-          <param name="max">0.785398</param>
-        </command_interface>
-      </xacro:unless>
-      <state_interface name="position"/>
-      <state_interface name="velocity"/>
-    </joint>
-
-    <joint name="right_finger_link_joint">
-      <xacro:if value="${gz_cmd_velocity}">
-        <command_interface name="velocity"/>
-      </xacro:if>
-      <xacro:unless value="${gz_cmd_velocity}">
-        <command_interface name="position">
-          <param name="min">-0.785398</param>
-          <param name="max">1.570795</param>
-        </command_interface>
-      </xacro:unless>
-      <state_interface name="position"/>
-      <state_interface name="velocity"/>
-    </joint>
-  </ros2_control>
-
-  <gazebo>
-    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
-      <ros>
-        <namespace>$(arg gz_namespace)</namespace>
-      </ros>
-      <parameters>$(find rover_arm_description)/config/$(arg gz_controllers_file)</parameters>
-    </plugin>
-  </gazebo>
+    <gazebo>
+      <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+        <ros>
+          <namespace>$(arg gz_namespace)</namespace>
+        </ros>
+        <parameters>$(find rover_arm_description)/config/$(arg gz_controllers_file)</parameters>
+      </plugin>
+    </gazebo>
   </xacro:if>
 
-  <gazebo reference="left_finger_link">
-    <self_collide>true</self_collide>
-  </gazebo>
-
-  <gazebo reference="right_finger_link">
-    <self_collide>true</self_collide>
-  </gazebo>
-
-  <gazebo reference="palm_link">
-    <self_collide>true</self_collide>
-  </gazebo>
-
-  <gazebo>
-    <plugin filename="ignition-gazebo-sensors-system" name="ignition::gazebo::systems::Sensors">
-      <render_engine>ogre2</render_engine>
-    </plugin>
-  </gazebo>
-
-  <gazebo reference="gripper_camera_optical_frame">
-    <sensor name="camera_mount_link_sensor" type="camera">
-      <always_on>true</always_on>
-      <update_rate>30</update_rate>
-      <visualize>false</visualize>
-      <topic>/gripper_camera/image</topic>
-      <pose>0 0 0 0 0 0</pose>
-      <camera>
-        <horizontal_fov>0.959931</horizontal_fov>
-        <image>
-          <width>1280</width>
-          <height>720</height>
-          <format>R8G8B8</format>
-        </image>
-        <clip>
-          <near>0.1</near>
-          <far>100</far>
-        </clip>
-      </camera>
-    </sensor>
-  </gazebo>
-
-  <!-- ZED 2i RGBD Camera & IMU Configurations -->
-  <gazebo reference="zed_camera_optical_frame">
-    <sensor name="zed_camera_link_sensor" type="depth_camera">
-      <always_on>true</always_on>
-      <update_rate>15</update_rate>
-      <visualize>false</visualize>
-      <topic>/zed/zed_node/rgb/color/rect/image</topic>
-      <pose>0.000442 0.035906 -0.0135 0 0 0</pose>
-      <camera>
-        <horizontal_fov>1.919862</horizontal_fov>
-        <image>
-          <width>1280</width>
-          <height>720</height>
-          <format>R8G8B8</format>
-        </image>
-        <clip>
-          <near>0.2</near>
-          <far>20</far>
-        </clip>
-      </camera>
-      <depth_camera>
-        <o>
-          <type>depth</type>
-        </o>
-      </depth_camera>
-    </sensor>
-
-    <!-- 2. THE INTERNAL IMU SENSOR -->
-    <sensor name="zed_imu_sensor" type="imu">
-      <always_on>true</always_on>
-      <update_rate>100</update_rate> 
-      <visualize>false</visualize>
-      <topic>/zed/zed_node/imu/data</topic>
-      <!-- POSE FIX: Aligned precisely with the camera sensor lens center -->
-      <pose>0 -0.02155 0 0 0 0</pose> 
-      <imu>
-        <angular_velocity>
-          <x><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></x>
-          <y><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></y>
-          <z><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></z>
-        </angular_velocity>
-        <linear_acceleration>
-          <x><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></x>
-          <y><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></y>
-          <z><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></z>
-        </linear_acceleration>
-      </imu>
-    </sensor>
-
-  </gazebo>
+  <!-- No Sensors / Physics systems here: worlds/world.sdf provides them. Adding a second
+       Sensors system crashes Gazebo (duplicate render scene). -->
 </robot>
-

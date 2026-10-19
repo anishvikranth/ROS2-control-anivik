@@ -82,7 +82,7 @@ private:
   using SteadyClock = std::chrono::steady_clock;
 
   // --- HARDWARE DIMENSIONS & INDEXING MAPPING ---
-  static constexpr size_t NUM_JOINTS = 7; // ROS joint count (includes mirrored finger)
+  static constexpr size_t NUM_JOINTS = 6; // 5 arm joints + the gripper's one actuated joint
   static constexpr size_t NUM_MOTORS = 6; // Physical motor channels on ESP32 board
 
   // ROS Joint Indices (mapped to URDF joint order)
@@ -91,14 +91,14 @@ private:
   static constexpr size_t ELBOW_JOINT_IDX    = 2; // elbow_link_joint
   static constexpr size_t PITCH_JOINT_IDX    = 3; // wrist_link_joint (Wrist Pitch)
   static constexpr size_t ROLL_JOINT_IDX     = 4; // palm_link_joint  (Palm Roll)
-  static constexpr size_t GRIPPER_LEFT_IDX   = 5; // left_finger_link_joint
-  static constexpr size_t GRIPPER_RIGHT_IDX  = 6; // right_finger_link_joint
+  static constexpr size_t GRIPPER_JOINT_IDX  = 5; // right_finger_back_top_link_joint (rest of the
+                                                  // gripper linkage are passive URDF mimic joints)
 
   // Expected <ros2_control> joint order. Checked in on_init so a reordered
   // xacro can't silently send base commands to the shoulder motor.
   static constexpr std::array<const char *, NUM_JOINTS> EXPECTED_JOINT_NAMES = {
     "base_link_joint", "shoulder_link_joint", "elbow_link_joint", "wrist_link_joint",
-    "palm_link_joint", "left_finger_link_joint", "right_finger_link_joint"};
+    "palm_link_joint", "right_finger_back_top_link_joint"};
 
   // Physical Motor Channel Indices (mapped to ESP32 / AVATAR serial array)
   static constexpr size_t BASE_MOTOR_IDX     = 0; // Base motor

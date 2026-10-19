@@ -1,15 +1,58 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="jade">
 
-  <!-- 1. Include both sub-files using package paths -->
-  <xacro:include filename="$(find rover_description)/urdf/rover_raw.xacro" />
-  <xacro:include filename="$(find rover_arm_description)/urdf/rover_arm_raw.xacro" />
+  <!-- 1. Global properties & color macros MUST come first -->
+  <xacro:include filename="$(find jade_description)/urdf/common_properties.xacro" />
 
-  <!-- 2. Add a joint connecting a link from the body to the root link of the arm -->
+  <!-- 2. Include Sub-robot Xacro files -->
+  <xacro:include filename="$(find rover_arm_description)/urdf/rover_arm.xacro" />
+  <xacro:include filename="$(find rover_description)/urdf/rover_raw.xacro" />
+  <xacro:include filename="$(find jade_description)/urdf/control.xacro" />
+
+  <!-- Fixed Joint between Chassis and Arm Stand -->
   <joint name="stand_link_joint" type="fixed">
-    <parent link="chassis_link" />     <!-- Link inside rover_body.xacro -->
-    <child link="stand_link" />     <!-- Link inside rover_arm.xacro -->
-    <origin xyz="0.15 0.0 0.0" rpy="0 0 0" />  <!-- Mounting position on chassis -->
+    <parent link="chassis_link"/>
+    <child link="stand_link"/>
+    <origin xyz="0.323 0 0.22" rpy="0 0 0"/>
   </joint>
+
+  <!-- ==================== COLOR ASSIGNMENTS ==================== -->
+
+  <!-- Arm Links -->
+  <xacro:gazebo_shiny_aluminum link_name="base_link"/>
+  <xacro:gazebo_shiny_aluminum link_name="stand_link"/>
+  <xacro:gazebo_shiny_aluminum link_name="shoulder_link"/>
+  <xacro:gazebo_shiny_aluminum link_name="elbow_link"/>
+  <xacro:gazebo_off_black link_name="wrist_link"/>
+  <xacro:gazebo_matte_white link_name="palm_link"/>
+
+  <!-- Gripper & Camera Links -->
+  <xacro:gazebo_shiny_aluminum link_name="left_finger_back_bottom_link"/>
+  <xacro:gazebo_shiny_aluminum link_name="left_finger_back_top_link"/>
+  <xacro:gazebo_shiny_aluminum link_name="left_finger_front_bottom_link"/>
+  <xacro:gazebo_shiny_aluminum link_name="left_finger_front_top_link"/>
+  <xacro:gazebo_shiny_aluminum link_name="right_finger_back_bottom_link"/>
+  <xacro:gazebo_shiny_aluminum link_name="right_finger_back_top_link"/>
+  <xacro:gazebo_shiny_aluminum link_name="right_finger_front_bottom_link"/>
+  <xacro:gazebo_shiny_aluminum link_name="right_finger_front_top_link"/>
+  <xacro:gazebo_off_black link_name="left_finger_link"/>
+  <xacro:gazebo_off_black link_name="right_finger_link"/>
+  <xacro:gazebo_off_black link_name="camera_mount_link"/>
+  <xacro:gazebo_black_shiny link_name="zed_camera_link"/>
+
+  <!-- Chassis & Rocker-Bogie Links -->
+  <xacro:gazebo_shiny_aluminum link_name="chassis_link"/>
+  <xacro:gazebo_shiny_aluminum link_name="left_bogie_link"/>
+  <xacro:gazebo_shiny_aluminum link_name="right_bogie_link"/>
+  <xacro:gazebo_shiny_aluminum link_name="left_rocker_link"/>
+  <xacro:gazebo_shiny_aluminum link_name="right_rocker_link"/>
+
+  <!-- Wheel Links -->
+  <xacro:gazebo_off_black link_name="back_left_wheel_link"/>
+  <xacro:gazebo_off_black link_name="middle_left_wheel_link"/>
+  <xacro:gazebo_off_black link_name="front_left_wheel_link"/>
+  <xacro:gazebo_off_black link_name="back_right_wheel_link"/>
+  <xacro:gazebo_off_black link_name="middle_right_wheel_link"/>
+  <xacro:gazebo_off_black link_name="front_right_wheel_link"/>
 
 </robot>

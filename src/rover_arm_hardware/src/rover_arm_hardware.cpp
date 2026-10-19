@@ -158,8 +158,7 @@ bool RoverArmHardware::parse_open_loop_joints(const std::string & spec)
           motor_open_loop_[BEVEL1_MOTOR_IDX] = true;
           motor_open_loop_[BEVEL2_MOTOR_IDX] = true;
           break;
-        case GRIPPER_LEFT_IDX:
-        case GRIPPER_RIGHT_IDX:  motor_open_loop_[GRIPPER_MOTOR_IDX] = true; break;
+        case GRIPPER_JOINT_IDX:  motor_open_loop_[GRIPPER_MOTOR_IDX] = true; break;
       }
     }
   }
@@ -684,12 +683,9 @@ void RoverArmHardware::update_joint_states()
   hw_positions_[ROLL_JOINT_IDX]   = (motor_angle_[BEVEL1_MOTOR_IDX] - motor_angle_[BEVEL2_MOTOR_IDX]) / 2.0;
   hw_velocities_[ROLL_JOINT_IDX]  = (motor_vel_measured_[BEVEL1_MOTOR_IDX] - motor_vel_measured_[BEVEL2_MOTOR_IDX]) / 2.0;
 
-  // --- Mirrored Finger Joint Mapping ---
-  hw_positions_[GRIPPER_LEFT_IDX]   = motor_angle_[GRIPPER_MOTOR_IDX];
-  hw_velocities_[GRIPPER_LEFT_IDX]  = motor_vel_measured_[GRIPPER_MOTOR_IDX];
-
-  hw_positions_[GRIPPER_RIGHT_IDX]  = -motor_angle_[GRIPPER_MOTOR_IDX];
-  hw_velocities_[GRIPPER_RIGHT_IDX] = -motor_vel_measured_[GRIPPER_MOTOR_IDX];
+  // --- Gripper: one motor drives the whole linkage through one actuated joint ---
+  hw_positions_[GRIPPER_JOINT_IDX]  = motor_angle_[GRIPPER_MOTOR_IDX];
+  hw_velocities_[GRIPPER_JOINT_IDX] = motor_vel_measured_[GRIPPER_MOTOR_IDX];
 }
 
 hardware_interface::return_type RoverArmHardware::write(
@@ -714,9 +710,8 @@ hardware_interface::return_type RoverArmHardware::write(
   motor_vel_setpoint[BEVEL1_MOTOR_IDX] = pitch_cmd + roll_cmd;
   motor_vel_setpoint[BEVEL2_MOTOR_IDX] = pitch_cmd - roll_cmd;
 
-  // --- Gripper Combination ---
-  motor_vel_setpoint[GRIPPER_MOTOR_IDX] =
-    (hw_velocity_commands_[GRIPPER_LEFT_IDX] - hw_velocity_commands_[GRIPPER_RIGHT_IDX]) / 2.0;
+  // --- Gripper ---
+  motor_vel_setpoint[GRIPPER_MOTOR_IDX] = hw_velocity_commands_[GRIPPER_JOINT_IDX];
 
   // NaN commands (e.g. a controller that never wrote) must never reach the motors.
   for (size_t m = 0; m < NUM_MOTORS; ++m)

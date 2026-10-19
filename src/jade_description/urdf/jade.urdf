@@ -4,6 +4,592 @@
 <!-- |    EDITING THIS FILE BY HAND IS NOT RECOMMENDED                                 | -->
 <!-- =================================================================================== -->
 <robot name="jade">
+  <!-- Add this near the end of your URDF file, right before </robot> -->
+  <gazebo>
+    <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
+      <topic>joint_states</topic>
+      <update_rate>30</update_rate>
+    </plugin>
+  </gazebo>
+  <gazebo>
+    <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+      <!-- Left Wheel Joints -->
+      <left_joint>front_left_wheel_link_joint</left_joint>
+      <left_joint>middle_left_wheel_link_joint</left_joint>
+      <left_joint>back_left_wheel_link_joint</left_joint>
+      <!-- Right Wheel Joints -->
+      <right_joint>front_right_wheel_link_joint</right_joint>
+      <right_joint>middle_right_wheel_link_joint</right_joint>
+      <right_joint>back_right_wheel_link_joint</right_joint>
+      <!-- Physical Kinematics -->
+      <wheel_separation>0.63</wheel_separation>
+      <wheel_radius>0.12</wheel_radius>
+      <!-- Command Limits -->
+      <max_linear_acceleration>5.0</max_linear_acceleration>
+      <max_angular_acceleration>10.0</max_angular_acceleration>
+      <!-- ROS / Gazebo Communication -->
+      <topic>cmd_vel</topic>
+      <odom_topic>odom</odom_topic>
+      <tf_topic>tf</tf_topic>
+      <frame_id>odom</frame_id>
+      <child_frame_id>chassis_footprint</child_frame_id>
+      <odom_publisher_frequency>30</odom_publisher_frequency>
+    </plugin>
+  </gazebo>
+  <!-- Apply to front_left, front_right, rear_left, and rear_right wheel links -->
+  <gazebo reference="front_left_wheel_link">
+    <mu1>0.5</mu1>
+    <mu2>0.05</mu2>
+    <!-- Low secondary friction allows lateral sliding when turning -->
+    <fdir1>1 0 0</fdir1>
+  </gazebo>
+  <gazebo reference="front_right_wheel_link">
+    <mu1>0.5</mu1>
+    <mu2>0.05</mu2>
+    <!-- Low secondary friction allows lateral sliding when turning -->
+    <fdir1>1 0 0</fdir1>
+  </gazebo>
+  <gazebo reference="middle_left_wheel_link">
+    <mu1>0.5</mu1>
+    <mu2>0.05</mu2>
+    <!-- Low secondary friction allows lateral sliding when turning -->
+    <fdir1>1 0 0</fdir1>
+  </gazebo>
+  <gazebo reference="middle_right_wheel_link">
+    <mu1>0.5</mu1>
+    <mu2>0.05</mu2>
+    <!-- Low secondary friction allows lateral sliding when turning -->
+    <fdir1>1 0 0</fdir1>
+  </gazebo>
+  <gazebo reference="back_left_wheel_link">
+    <mu1>0.5</mu1>
+    <mu2>0.05</mu2>
+    <!-- Low secondary friction allows lateral sliding when turning -->
+    <fdir1>1 0 0</fdir1>
+  </gazebo>
+  <gazebo reference="back_right_wheel_link">
+    <mu1>0.5</mu1>
+    <mu2>0.05</mu2>
+    <!-- Low secondary friction allows lateral sliding when turning -->
+    <fdir1>1 0 0</fdir1>
+  </gazebo>
+  <!-- Links -->
+  <link name="base_link">
+    <inertial>
+      <origin rpy="0 0 1.570796" xyz="-0.001028 0.001193 0.047499"/>
+      <mass value="1"/>
+      <inertia ixx="0.001432" ixy="0" ixz="0" iyy="0.001278" iyz="0" izz="0.001206"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 1.570796" xyz="-0.001028 0.001193 0.047499"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/base_link_visual.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 1.570796" xyz="-0.001028 0.001193 0.047499"/>
+      <geometry>
+        <box size="0.079456 0.090314 0.094999"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="camera_mount_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.02205 -0.0356 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="0.000023" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.000029"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0.02205 0 0.00615"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/camera_mount_link_visual.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.02205 -0.0356 0"/>
+      <geometry>
+        <box size="0.044099 0.071199 0.0225"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="elbow_link">
+    <inertial>
+      <origin rpy="0 0 1.570796" xyz="0.115487 -0.072527 -0.000852"/>
+      <mass value="2.57"/>
+      <inertia ixx="0.428333" ixy="0" ixz="0" iyy="0.428333" iyz="0" izz="0.428333"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 1.570796" xyz="0.123458 -0.08171 -0.000357"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/elbow_link_visual.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 1.570796" xyz="0.115487 -0.072527 -0.000852"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/elbow_link_collision.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_finger_back_bottom_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.036666 0.020224 0.0025"/>
+      <mass value="0.013"/>
+      <inertia ixx="0.002167" ixy="0" ixz="0" iyy="0.002167" iyz="0" izz="0.002167"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0.036666 0.020224 0.0025"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/left_finger_back_bottom_link_visual.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.036666 0.020224 0.0025"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/left_finger_back_bottom_link_collision.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_finger_back_top_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.036666 0.020224 0.0025"/>
+      <mass value="0.013"/>
+      <inertia ixx="0.002167" ixy="0" ixz="0" iyy="0.002167" iyz="0" izz="0.002167"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0.036666 0.020224 0.0025"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/left_finger_back_top_link_visual.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.036666 0.020224 0.0025"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/left_finger_back_top_link_collision.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_finger_front_bottom_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.036666 0.020224 0.0025"/>
+      <mass value="0.013"/>
+      <inertia ixx="0.002167" ixy="0" ixz="0" iyy="0.002167" iyz="0" izz="0.002167"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0.036662 0.020224 0.0025"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/left_finger_front_bottom_link_visual.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.036666 0.020224 0.0025"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/left_finger_front_bottom_link_collision.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_finger_front_top_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.036666 0.020224 0.0025"/>
+      <mass value="0.013"/>
+      <inertia ixx="0.002167" ixy="0" ixz="0" iyy="0.002167" iyz="0" izz="0.002167"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0.036662 0.020224 0.0025"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/left_finger_front_top_link_visual.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.036666 0.020224 0.0025"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/left_finger_front_top_link_collision.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_finger_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.046263 -0.014314 -0.0175"/>
+      <mass value="0.05"/>
+      <inertia ixx="0.008333" ixy="0" ixz="0" iyy="0.008333" iyz="0" izz="0.008333"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0.046263 -0.014314 -0.0175"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/left_finger_link_visual.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.046263 -0.014314 -0.0175"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/left_finger_link_collision.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="palm_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.039999 0.003006 0"/>
+      <mass value="0.453"/>
+      <inertia ixx="0.000454" ixy="0" ixz="0" iyy="0.000454" iyz="0" izz="0.000483"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0.039999 0.003006 0"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/palm_link_visual.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.039999 0.003006 0"/>
+      <geometry>
+        <box size="0.079999 0.079998 0.074999"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_finger_back_bottom_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.036666 -0.020224 0.0025"/>
+      <mass value="0.013"/>
+      <inertia ixx="0.002167" ixy="0" ixz="0" iyy="0.002167" iyz="0" izz="0.002167"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0.036666 -0.020224 0.0025"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/right_finger_back_bottom_link_visual.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.036666 -0.020224 0.0025"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/right_finger_back_bottom_link_collision.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_finger_back_top_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.036666 -0.020224 0.0025"/>
+      <mass value="0.013"/>
+      <inertia ixx="0.002167" ixy="0" ixz="0" iyy="0.002167" iyz="0" izz="0.002167"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0.036666 -0.020224 0.0025"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/right_finger_back_top_link_visual.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.036666 -0.020224 0.0025"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/right_finger_back_top_link_collision.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_finger_front_bottom_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.036666 -0.020224 0.0025"/>
+      <mass value="0.013"/>
+      <inertia ixx="0.002167" ixy="0" ixz="0" iyy="0.002167" iyz="0" izz="0.002167"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0.036666 -0.020224 0.0025"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/right_finger_front_bottom_link_visual.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.036666 -0.020224 0.0025"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/right_finger_front_bottom_link_collision.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_finger_front_top_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.036666 -0.020224 0.0025"/>
+      <mass value="0.013"/>
+      <inertia ixx="0.002167" ixy="0" ixz="0" iyy="0.002167" iyz="0" izz="0.002167"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0.036666 -0.020224 0.0025"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/right_finger_front_top_link_visual.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.036666 -0.020224 0.0025"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/right_finger_front_top_link_collision.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_finger_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.046263 0.014314 -0.0175"/>
+      <mass value="0.05"/>
+      <inertia ixx="0.008333" ixy="0" ixz="0" iyy="0.008333" iyz="0" izz="0.008333"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0.046263 0.014314 -0.0175"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/right_finger_link_visual.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.046263 0.014314 -0.0175"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/right_finger_link_collision.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="shoulder_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.208545 0.020425 0.000072"/>
+      <mass value="0.5"/>
+      <inertia ixx="0.083333" ixy="0" ixz="0" iyy="0.083333" iyz="0" izz="0.083333"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 1.570796" xyz="0.208547 0.0205 0"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/shoulder_link_visual.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.208545 0.020425 0.000072"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/shoulder_link_collision.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="stand_link">
+    <inertial>
+      <origin rpy="0 0 1.570796" xyz="0.000553 0.035798 0.0135"/>
+      <mass value="2"/>
+      <inertia ixx="0.004163" ixy="0" ixz="0" iyy="0.009635" iyz="0" izz="0.009077"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 1.570796" xyz="0.000553 0.035798 0.0135"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/stand_link_visual.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 1.570796" xyz="0.000553 0.035798 0.0135"/>
+      <geometry>
+        <box size="0.20892 0.104 0.119"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="wrist_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.065296 0 0.000008"/>
+      <mass value="0.45"/>
+      <inertia ixx="0.075" ixy="0" ixz="0" iyy="0.075" iyz="0" izz="0.075"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0.065296 0 0.000008"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/wrist_link_visual.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.065296 0 0.000008"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/wrist_link_collision.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="zed_camera_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="-0.02155 0 -0.01515"/>
+      <mass value="0.166"/>
+      <inertia ixx="0.000438" ixy="0" ixz="0" iyy="0.000038" iyz="0" izz="0.000451"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="-0.02155 0 -0.01515"/>
+      <geometry>
+        <mesh filename="package://rover_arm_description/urdf/meshes/zed_camera_link_visual.obj"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="-0.02155 0 -0.01515"/>
+      <geometry>
+        <box size="0.0431 0.1753 0.0303"/>
+      </geometry>
+    </collision>
+  </link>
+  <!-- Joints -->
+  <joint name="base_link_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="-0.000162 -0.000166 0.073"/>
+    <parent link="stand_link"/>
+    <child link="base_link"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="100" lower="-1.570795" upper="1.570795" velocity="1"/>
+    <dynamics damping="1.0" friction="75"/>
+  </joint>
+  <joint name="camera_mount_link_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0.003006 0.0375"/>
+    <parent link="palm_link"/>
+    <child link="camera_mount_link"/>
+  </joint>
+  <joint name="elbow_link_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="0.404295 0.046999 0"/>
+    <parent link="shoulder_link"/>
+    <child link="elbow_link"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="10" lower="-3.141593" upper="3.141593" velocity="1"/>
+  </joint>
+  <joint name="left_finger_back_bottom_link_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="0.031938 0.024947 -0.0225"/>
+    <parent link="palm_link"/>
+    <child link="left_finger_back_bottom_link"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" lower="-3.141593" upper="3.141593" velocity="1"/>
+    <mimic joint="right_finger_back_top_link_joint" multiplier="-1"/>
+  </joint>
+  <joint name="left_finger_back_top_link_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="0.031938 0.024947 0.0175"/>
+    <parent link="palm_link"/>
+    <child link="left_finger_back_top_link"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" lower="-3.141593" upper="3.141593" velocity="1"/>
+    <mimic joint="right_finger_back_top_link_joint" multiplier="-1"/>
+  </joint>
+  <joint name="left_finger_front_bottom_link_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="0.066942 0.009947 -0.0225"/>
+    <parent link="palm_link"/>
+    <child link="left_finger_front_bottom_link"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" lower="-3.141593" upper="3.141593" velocity="1"/>
+    <mimic joint="right_finger_back_top_link_joint" multiplier="-1"/>
+  </joint>
+  <joint name="left_finger_front_top_link_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="0.066942 0.009947 0.0175"/>
+    <parent link="palm_link"/>
+    <child link="left_finger_front_top_link"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" lower="-3.141593" upper="3.141593" velocity="1"/>
+    <mimic joint="right_finger_back_top_link_joint" multiplier="-1"/>
+  </joint>
+  <joint name="left_finger_link_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="0.07789 0.04497 0"/>
+    <parent link="left_finger_back_top_link"/>
+    <child link="left_finger_link"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" lower="-3.141593" upper="3.141593" velocity="1"/>
+    <mimic joint="right_finger_back_top_link_joint"/>
+  </joint>
+  <joint name="palm_link_joint" type="continuous">
+    <origin rpy="0 0 0" xyz="0.163045 -0.000975 0.000003"/>
+    <parent link="wrist_link"/>
+    <child link="palm_link"/>
+    <axis xyz="1 0 0"/>
+    <limit effort="10" lower="0" upper="0" velocity="1"/>
+  </joint>
+  <joint name="right_finger_back_bottom_link_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="0.03232 -0.024728 0.01734"/>
+    <parent link="palm_link"/>
+    <child link="right_finger_back_bottom_link"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" lower="-3.141593" upper="3.141593" velocity="1"/>
+    <mimic joint="right_finger_back_top_link_joint"/>
+  </joint>
+  <joint name="right_finger_back_top_link_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="0.03232 -0.024728 -0.02266"/>
+    <parent link="palm_link"/>
+    <child link="right_finger_back_top_link"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" lower="-0.785398" upper="0.523598" velocity="1"/>
+  </joint>
+  <joint name="right_finger_front_bottom_link_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="0.06732 -0.009728 0.01734"/>
+    <parent link="palm_link"/>
+    <child link="right_finger_front_bottom_link"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" lower="-3.141593" upper="3.141593" velocity="1"/>
+    <mimic joint="right_finger_back_top_link_joint"/>
+  </joint>
+  <joint name="right_finger_front_top_link_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="0.06732 -0.009728 -0.02266"/>
+    <parent link="palm_link"/>
+    <child link="right_finger_front_top_link"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" lower="-3.141593" upper="3.141593" velocity="1"/>
+    <mimic joint="right_finger_back_top_link_joint"/>
+  </joint>
+  <joint name="right_finger_link_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="0.07789 -0.04497 -0.000001"/>
+    <parent link="right_finger_back_bottom_link"/>
+    <child link="right_finger_link"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" lower="-3.141593" upper="3.141593" velocity="1"/>
+    <mimic joint="right_finger_back_top_link_joint" multiplier="-1"/>
+  </joint>
+  <joint name="shoulder_link_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="0.000139 0.040749 0.044051"/>
+    <parent link="base_link"/>
+    <child link="shoulder_link"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="10" lower="-1.570795" upper="0" velocity="1"/>
+  </joint>
+  <joint name="wrist_link_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="0.266996 -0.096997 -0.000596"/>
+    <parent link="elbow_link"/>
+    <child link="wrist_link"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="10" lower="-1.570795" upper="1.570795" velocity="1"/>
+  </joint>
+  <joint name="zed_camera_link_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0.052553 -0.000162 0"/>
+    <parent link="stand_link"/>
+    <child link="zed_camera_link"/>
+  </joint>
+  <!-- Sensors -->
+  <gazebo reference="camera_mount_link">
+    <sensor name="camera_mount_link_sensor" type="camera">
+      <always_on>true</always_on>
+      <update_rate>30</update_rate>
+      <visualize>false</visualize>
+      <topic>/gripper/camera</topic>
+      <pose>0 0 0.01115 0 0 0</pose>
+      <camera>
+        <horizontal_fov>1.047</horizontal_fov>
+        <image>
+          <width>640</width>
+          <height>480</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.1</near>
+          <far>100</far>
+        </clip>
+      </camera>
+    </sensor>
+  </gazebo>
+  <gazebo reference="zed_camera_link">
+    <sensor name="zed_camera_link_sensor" type="rgbd">
+      <always_on>true</always_on>
+      <update_rate>15.0</update_rate>
+      <topic>/zed/zed_node/image</topic>
+      <gz_frame_id>zed_camera_link</gz_frame_id>
+      <camera>
+        <!-- 110 degree horizontal FOV in radians -->
+        <horizontal_fov>1.91986</horizontal_fov>
+        <image>
+          <width>1280</width>
+          <height>720</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.3</near>
+          <far>20.0</far>
+        </clip>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.007</stddev>
+        </noise>
+      </camera>
+    </sensor>
+  </gazebo>
   <!-- Links -->
   <link name="back_left_wheel_link">
     <inertial>
@@ -43,12 +629,7 @@
       </geometry>
     </collision>
   </link>
-  <link name="chassis_footprint">
-    <inertial>
-      <mass value="1"/>
-      <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0"/>
-    </inertial>
-  </link>
+  <link name="chassis_footprint"/>
   <link name="chassis_link">
     <inertial>
       <origin rpy="0 0 0" xyz="0 0 0.120509"/>
@@ -87,7 +668,7 @@
       </geometry>
     </collision>
   </link>
-  <link name="left_back_wheel_link">
+  <link name="front_right_wheel_link">
     <inertial>
       <origin rpy="1.570796 0 0" xyz="-0.000784 -0.092012 0.001876"/>
       <mass value="3"/>
@@ -96,7 +677,7 @@
     <visual>
       <origin rpy="1.570796 0 0" xyz="-0.000784 -0.092012 0.001876"/>
       <geometry>
-        <mesh filename="package://rover_description/urdf/meshes/left_back_wheel_link_visual.obj"/>
+        <mesh filename="package://rover_description/urdf/meshes/front_right_wheel_link_visual.obj"/>
       </geometry>
     </visual>
     <collision>
@@ -226,17 +807,17 @@
     <parent link="left_rocker_link"/>
     <child link="back_left_wheel_link"/>
     <axis xyz="0 1 0"/>
-    <limit effort="10" lower="0" upper="0" velocity="1"/>
+    <limit effort="12" lower="0" upper="0" velocity="15"/>
   </joint>
   <joint name="back_right_wheel_link_joint" type="continuous">
     <origin rpy="-0.000001 0 0" xyz="-0.55172 -0.0135 -0.306193"/>
     <parent link="right_rocker_link"/>
     <child link="back_right_wheel_link"/>
     <axis xyz="0 1 0"/>
-    <limit effort="10" lower="0" upper="0" velocity="1"/>
+    <limit effort="12" lower="0" upper="0" velocity="15"/>
   </joint>
   <joint name="chassis_link_joint" type="fixed">
-    <origin rpy="0 0 0" xyz="0.017593 -0.313117 -0.118479"/>
+    <origin rpy="0 0 0" xyz="0 0 0"/>
     <parent link="chassis_footprint"/>
     <child link="chassis_link"/>
   </joint>
@@ -245,14 +826,14 @@
     <parent link="left_bogie_link"/>
     <child link="front_left_wheel_link"/>
     <axis xyz="0 1 0"/>
-    <limit effort="10" lower="0" upper="0" velocity="1"/>
+    <limit effort="12" lower="0" upper="0" velocity="15"/>
   </joint>
-  <joint name="left_back_wheel_link_joint" type="continuous">
+  <joint name="front_right_wheel_link_joint" type="continuous">
     <origin rpy="0 0 0" xyz="0.247131 -0.0135 -0.201737"/>
     <parent link="right_bogie_link"/>
-    <child link="left_back_wheel_link"/>
+    <child link="front_right_wheel_link"/>
     <axis xyz="0 1 0"/>
-    <limit effort="10" lower="0" upper="0" velocity="1"/>
+    <limit effort="12" lower="0" upper="0" velocity="15"/>
   </joint>
   <joint name="left_bogie_link_joint" type="revolute">
     <origin rpy="-0.000001 0 0" xyz="0.210291 0 -0.190873"/>
@@ -273,14 +854,14 @@
     <parent link="left_bogie_link"/>
     <child link="middle_left_wheel_link"/>
     <axis xyz="0 1 0"/>
-    <limit effort="10" lower="0" upper="0" velocity="1"/>
+    <limit effort="12" lower="0" upper="0" velocity="15"/>
   </joint>
   <joint name="middle_right_wheel_link_joint" type="continuous">
     <origin rpy="0 0 0" xyz="-0.236289 -0.0135 -0.201885"/>
     <parent link="right_bogie_link"/>
     <child link="middle_right_wheel_link"/>
     <axis xyz="0 1 0"/>
-    <limit effort="10" lower="0" upper="0" velocity="1"/>
+    <limit effort="12" lower="0" upper="0" velocity="15"/>
   </joint>
   <joint name="right_bogie_link_joint" type="revolute">
     <origin rpy="-0.000001 0 0" xyz="0.210291 0 -0.190873"/>
@@ -294,314 +875,445 @@
     <parent link="chassis_link"/>
     <child link="right_rocker_link"/>
     <axis xyz="0 1 0"/>
-    <limit effort="10" lower="-3.141593" upper="3.141593" velocity="1"/>
+    <limit effort="10" lower="-1.570795" upper="1.570795" velocity="1"/>
+    <mimic joint="left_rocker_link_joint" multiplier="-1.0" offset="0.0"/>
   </joint>
-  <!-- Links -->
-  <link name="base_link">
-    <inertial>
-      <origin rpy="0 0 -1.570796" xyz="0.001193 0.001028 0.047499"/>
-      <mass value="1.062"/>
-      <inertia ixx="0.001357" ixy="0" ixz="0" iyy="0.001521" iyz="0" izz="0.001281"/>
-    </inertial>
-    <visual>
-      <origin rpy="0 0 0" xyz="0.001193 0.001028 0.047499"/>
-      <geometry>
-        <mesh filename="meshes/base_link_visual.stl"/>
-      </geometry>
-    </visual>
-    <collision>
-      <origin rpy="0 0 -1.570796" xyz="0.001193 0.001028 0.047499"/>
-      <geometry>
-        <box size="0.090314 0.079456 0.094999"/>
-      </geometry>
-    </collision>
-  </link>
-  <link name="camera_mount_link">
-    <inertial>
-      <origin rpy="0 0 0" xyz="0 0.02205 0.00615"/>
-      <mass value="0.15"/>
-      <inertia ixx="0.000037" ixy="0" ixz="0" iyy="0.000076" iyz="0" izz="0.000088"/>
-    </inertial>
-    <visual>
-      <origin rpy="0 0 0" xyz="0 0.02205 0.00615"/>
-      <geometry>
-        <mesh filename="meshes/camera_mount_link_visual.stl"/>
-      </geometry>
-    </visual>
-    <collision>
-      <origin rpy="0 0 0" xyz="0 0.02205 0.00615"/>
-      <geometry>
-        <box size="0.071199 0.044099 0.0323"/>
-      </geometry>
-    </collision>
-  </link>
-  <link name="elbow_link">
-    <inertial>
-      <origin rpy="1.570796 0 -1.570796" xyz="0.139619 -0.000409 0.08721"/>
-      <mass value="2.571"/>
-      <inertia ixx="0.042429" ixy="0" ixz="0" iyy="0.039541" iyz="0" izz="0.010207"/>
-    </inertial>
-    <visual>
-      <origin rpy="-1.570796 1.570796 0" xyz="0.139619 -0.000409 0.08721"/>
-      <geometry>
-        <mesh filename="meshes/elbow_link_visual.stl"/>
-      </geometry>
-    </visual>
-    <collision>
-      <origin rpy="1.570796 0 -1.570796" xyz="0.139619 -0.000409 0.08721"/>
-      <geometry>
-        <box size="0.130697 0.174815 0.409236"/>
-      </geometry>
-    </collision>
-  </link>
-  <link name="left_finger_link">
-    <inertial>
-      <origin rpy="0 0 0" xyz="-0.013811 -0.083292 0"/>
-      <mass value="0.132"/>
-      <inertia ixx="0.022" ixy="0" ixz="0" iyy="0.022" iyz="0" izz="0.022"/>
-    </inertial>
-    <visual>
-      <origin rpy="0 0 0" xyz="-0.013622 -0.083285 0"/>
-      <geometry>
-        <mesh filename="meshes/left_finger_link_visual.stl"/>
-      </geometry>
-    </visual>
-    <collision>
-      <origin rpy="0 0 0" xyz="-0.013811 -0.083292 0"/>
-      <geometry>
-        <mesh filename="meshes/left_finger_link_collision.stl"/>
-      </geometry>
-    </collision>
-  </link>
-  <link name="palm_link">
-    <inertial>
-      <origin rpy="0 0 1.570796" xyz="-0.003068 0.039999 0"/>
-      <mass value="0.453"/>
-      <inertia ixx="0.000454" ixy="0" ixz="0" iyy="0.000454" iyz="0" izz="0.000483"/>
-    </inertial>
-    <visual>
-      <origin rpy="0 0 3.141593" xyz="-0.003068 0.039999 0"/>
-      <geometry>
-        <mesh filename="meshes/palm_link_visual.stl"/>
-      </geometry>
-    </visual>
-    <collision>
-      <origin rpy="0 0 1.570796" xyz="-0.003068 0.039999 0"/>
-      <geometry>
-        <box size="0.079999 0.079998 0.074999"/>
-      </geometry>
-    </collision>
-  </link>
-  <link name="right_finger_link">
-    <inertial>
-      <origin rpy="0 0 0" xyz="0.013688 -0.083207 0"/>
-      <mass value="0.132"/>
-      <inertia ixx="0.022" ixy="0" ixz="0" iyy="0.022" iyz="0" izz="0.022"/>
-    </inertial>
-    <visual>
-      <origin rpy="0 0 0" xyz="0.013622 -0.083285 0"/>
-      <geometry>
-        <mesh filename="meshes/right_finger_link_visual.stl"/>
-      </geometry>
-    </visual>
-    <collision>
-      <origin rpy="0 0 0" xyz="0.013688 -0.083207 0"/>
-      <geometry>
-        <mesh filename="meshes/right_finger_link_collision.stl"/>
-      </geometry>
-    </collision>
-  </link>
-  <link name="shoulder_link">
-    <inertial>
-      <origin rpy="0 0 0" xyz="0 -0.208547 0.0205"/>
-      <mass value="0.505"/>
-      <inertia ixx="0.009733" ixy="0" ixz="0" iyy="0.000482" iyz="0" izz="0.009859"/>
-    </inertial>
-    <visual>
-      <origin rpy="0 -3.141593 0" xyz="-0.0205 -0.208547 0"/>
-      <geometry>
-        <mesh filename="meshes/shoulder_link_visual.stl"/>
-      </geometry>
-    </visual>
-    <collision>
-      <origin rpy="0 0 0" xyz="0 -0.208547 0.0205"/>
-      <geometry>
-        <box size="0.084999 0.476494 0.064999"/>
-      </geometry>
-    </collision>
-  </link>
-  <link name="stand_link">
-    <inertial>
-      <origin rpy="0 0 0" xyz="0.035906 -0.000442 0.0135"/>
-      <mass value="1.897"/>
-      <inertia ixx="0.003948" ixy="0" ixz="0" iyy="0.009139" iyz="0" izz="0.00861"/>
-    </inertial>
-    <visual>
-      <origin rpy="0 0 0" xyz="0.035906 -0.000442 0.0135"/>
-      <geometry>
-        <mesh filename="meshes/stand_link_visual.stl"/>
-      </geometry>
-    </visual>
-    <collision>
-      <origin rpy="0 0 0" xyz="0.035906 -0.000442 0.0135"/>
-      <geometry>
-        <box size="0.20892 0.104 0.119"/>
-      </geometry>
-    </collision>
-  </link>
-  <link name="wrist_link">
-    <inertial>
-      <origin rpy="0 1.570796 0" xyz="0 -0.064871 0"/>
-      <mass value="0.45"/>
-      <inertia ixx="0.001685" ixy="0" ixz="0" iyy="0.000436" iyz="0" izz="0.001617"/>
-    </inertial>
-    <visual>
-      <origin rpy="0 -3.141593 0" xyz="0 -0.06487 0"/>
-      <geometry>
-        <mesh filename="meshes/wrist_link_visual.stl"/>
-      </geometry>
-    </visual>
-    <collision>
-      <origin rpy="0 1.570796 0" xyz="0 -0.064871 0"/>
-      <geometry>
-        <box size="0.069999 0.195497 0.081999"/>
-      </geometry>
-    </collision>
-  </link>
-  <link name="zed_camera_link">
-    <inertial>
-      <origin rpy="0 -1.570796 0" xyz="0.02155 0 0"/>
-      <mass value="0.229"/>
-      <inertia ixx="0.000622" ixy="0" ixz="0" iyy="0.000053" iyz="0" izz="0.000604"/>
-    </inertial>
-    <visual>
-      <origin rpy="0 0 0" xyz="0.02155 0 0"/>
-      <geometry>
-        <mesh filename="meshes/zed_camera_link_visual.stl"/>
-      </geometry>
-    </visual>
-    <collision>
-      <origin rpy="0 -1.570796 0" xyz="0.02155 0 0"/>
-      <geometry>
-        <box size="0.0303 0.1753 0.0431"/>
-      </geometry>
-    </collision>
-  </link>
-  <!-- Joints -->
-  <joint name="base_link_joint" type="revolute">
-    <origin rpy="0 0 0" xyz="-0.000054 -0.000055 0.073"/>
-    <parent link="stand_link"/>
-    <child link="base_link"/>
-    <axis xyz="0 0 1"/>
-    <limit effort="34.32" lower="-1.570795" upper="1.570795" velocity="1"/>
-  </joint>
-  <joint name="camera_mount_link_joint" type="fixed">
-    <origin rpy="0 0 0.000001" xyz="-0.000069 0 0.0375"/>
-    <parent link="palm_link"/>
-    <child link="camera_mount_link"/>
-  </joint>
-  <joint name="elbow_link_joint" type="revolute">
-    <origin rpy="-1.570797 0 -1.570796" xyz="-0.049999 -0.404295 0"/>
-    <parent link="shoulder_link"/>
-    <child link="elbow_link"/>
-    <axis xyz="0 1 0"/>
-    <limit effort="123.559998" lower="-3.141593" upper="3.141593" velocity="1"/>
-  </joint>
-  <joint name="left_finger_link_joint" type="revolute">
-    <origin rpy="0 0 -3.141593" xyz="0.024931 0.032 0"/>
-    <parent link="palm_link"/>
-    <child link="left_finger_link"/>
-    <axis xyz="0 0 1"/>
-    <limit effort="5.15" lower="-1.570795" upper="0.785398" velocity="1"/>
-  </joint>
-  <joint name="palm_link_joint" type="revolute">
-    <origin rpy="3.141593 0 0" xyz="-0.000022 -0.162619 -0.00015"/>
-    <parent link="wrist_link"/>
-    <child link="palm_link"/>
-    <axis xyz="1 0 0"/>
-    <limit effort="10" lower="-3.141593" upper="3.141593" velocity="1"/>
-  </joint>
-  <joint name="right_finger_link_joint" type="revolute">
-    <origin rpy="0 0 3.141593" xyz="-0.025098 0.032462 -0.002467"/>
-    <parent link="palm_link"/>
-    <child link="right_finger_link"/>
-    <axis xyz="0 0 1"/>
-    <limit effort="5.15" lower="-1.570795" upper="0.785398" velocity="1"/>
-  </joint>
-  <joint name="shoulder_link_joint" type="revolute">
-    <origin rpy="0 3.141593 0" xyz="0.040749 -0.000139 0.044051"/>
-    <parent link="base_link"/>
-    <child link="shoulder_link"/>
-    <axis xyz="0 0 1"/>
-    <limit effort="137.300003" lower="-1.5708" upper="0.3927" velocity="1"/>
-  </joint>
-  <joint name="wrist_link_joint" type="revolute">
-    <origin rpy="1.570796 -1.570796 0" xyz="0.266997 -0.000647 0.102497"/>
-    <parent link="elbow_link"/>
-    <child link="wrist_link"/>
-    <axis xyz="0 0 1"/>
-    <limit effort="27.459999" lower="-1.570795" upper="1.570795" velocity="1"/>
-  </joint>
-  <joint name="zed_camera_link_joint" type="fixed">
-    <origin rpy="0 0 1.570796" xyz="-0.000054 -0.052442 -0.01515"/>
-    <parent link="stand_link"/>
-    <child link="zed_camera_link"/>
-  </joint>
-  <!-- Sensors -->
-  <gazebo reference="camera_mount_link">
-    <sensor name="camera_mount_link_sensor" type="camera">
-      <always_on>true</always_on>
-      <update_rate>30</update_rate>
-      <visualize>false</visualize>
-      <topic>/gripper_camera/image</topic>
-      <pose>0.035906 -0.000442 -0.0135 0 0 0</pose>
-      <camera>
-        <horizontal_fov>0.959931</horizontal_fov>
-        <image>
-          <width>1280</width>
-          <height>720</height>
-          <format>R8G8B8</format>
-        </image>
-        <clip>
-          <near>0.1</near>
-          <far>100</far>
-        </clip>
-      </camera>
-    </sensor>
+  <ros2_control name="jade_arm_system" type="system">
+    <hardware>
+      <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+    </hardware>
+    <joint name="base_link_joint">
+      <command_interface name="position">
+        <param name="min">-1.570795</param>
+        <param name="max">1.570795</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="shoulder_link_joint">
+      <command_interface name="position">
+        <param name="min">-1.570795</param>
+        <param name="max">0</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="elbow_link_joint">
+      <command_interface name="position">
+        <param name="min">-3.141593</param>
+        <param name="max">3.141593</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="wrist_link_joint">
+      <command_interface name="position">
+        <param name="min">-1.570795</param>
+        <param name="max">1.570795</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <!-- continuous joint (wrist roll) — no hard position limit -->
+    <joint name="palm_link_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <!-- ===================== Parallel gripper linkage =====================
+         Only right_finger_back_top_link_joint is truly actuated. Every other
+         finger joint below is mechanically slaved to it (per the <mimic> tags
+         already in jade.urdf) and is exposed here as a mimic joint so
+         gz_ros2_control drives the whole linkage from one command, matching
+         the real kinematics instead of letting each joint be commanded
+         independently. Multipliers/offsets are copied 1:1 from the URDF. -->
+    <joint name="right_finger_back_top_link_joint">
+      <command_interface name="position">
+        <param name="min">-0.785398</param>
+        <param name="max">0.523598</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="right_finger_back_bottom_link_joint">
+      <param name="mimic">right_finger_back_top_link_joint</param>
+      <param name="multiplier">1.0</param>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="right_finger_front_bottom_link_joint">
+      <param name="mimic">right_finger_back_top_link_joint</param>
+      <param name="multiplier">1.0</param>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="right_finger_front_top_link_joint">
+      <param name="mimic">right_finger_back_top_link_joint</param>
+      <param name="multiplier">1.0</param>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="right_finger_link_joint">
+      <param name="mimic">right_finger_back_top_link_joint</param>
+      <param name="multiplier">-1.0</param>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="left_finger_back_top_link_joint">
+      <param name="mimic">right_finger_back_top_link_joint</param>
+      <param name="multiplier">-1.0</param>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="left_finger_back_bottom_link_joint">
+      <param name="mimic">right_finger_back_top_link_joint</param>
+      <param name="multiplier">-1.0</param>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="left_finger_front_bottom_link_joint">
+      <param name="mimic">right_finger_back_top_link_joint</param>
+      <param name="multiplier">-1.0</param>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="left_finger_front_top_link_joint">
+      <param name="mimic">right_finger_back_top_link_joint</param>
+      <param name="multiplier">-1.0</param>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="left_finger_link_joint">
+      <param name="mimic">right_finger_back_top_link_joint</param>
+      <param name="multiplier">1.0</param>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
+  <!-- Bridges the above ros2_control interfaces into Gazebo Harmonic.
+       Loads controller_manager with the YAML config you point it at. -->
+  <gazebo>
+    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>/home/ananth/sim_ws/install/jade_description/share/jade_description/config/rover_controllers.yaml</parameters>
+    </plugin>
   </gazebo>
-  <gazebo reference="zed_camera_link">
-    <sensor name="zed_camera_link_sensor" type="depth_camera">
-      <always_on>true</always_on>
-      <update_rate>15</update_rate>
-      <visualize>false</visualize>
-      <topic>/zed/zed_node/rgb/color/rect/image</topic>
-      <pose>0.000442 0.035906 -0.0135 0 0 0</pose>
-      <camera>
-        <horizontal_fov>1.919862</horizontal_fov>
-        <image>
-          <width>1280</width>
-          <height>720</height>
-          <format>R8G8B8</format>
-        </image>
-        <clip>
-          <near>0.2</near>
-          <far>20</far>
-        </clip>
-      </camera>
-      <depth_camera>
-        <output>
-          <type>depth</type>
-        </output>
-      </depth_camera>
-    </sensor>
-  </gazebo>
-  <!-- 2. Add a joint connecting a link from the body to the root link of the arm -->
+  <!-- Fixed Joint between Chassis and Arm Stand -->
   <joint name="stand_link_joint" type="fixed">
     <parent link="chassis_link"/>
-    <!-- Link inside rover_body.xacro -->
     <child link="stand_link"/>
-    <!-- Link inside rover_arm.xacro -->
-    <origin rpy="0 0 0" xyz="0.15 0.0 0.0"/>
-    <!-- Mounting position on chassis -->
+    <origin rpy="0 0 0" xyz="0.323 0 0.22"/>
   </joint>
+  <!-- <gazebo reference="base_link_joint">
+    <springStiffness>5000.0</springStiffness>
+    <springReference>0.0</springReference>
+  </gazebo>
+
+  <gazebo reference="shoulder_link_joint">
+    <springStiffness>5000.0</springStiffness>
+    <springReference>0.0</springReference>
+  </gazebo>
+
+  <gazebo reference="elbow_link_joint">
+    <springStiffness>5000.0</springStiffness>
+    <springReference>0.0</springReference>
+  </gazebo>
+
+  <gazebo reference="wrist_link_joint">
+    <springStiffness>5000.0</springStiffness>
+    <springReference>0.0</springReference>
+  </gazebo>
+
+  <gazebo reference="palm_link_joint">
+    <springStiffness>5000.0</springStiffness>
+    <springReference>0.0</springReference>
+  </gazebo> -->
+  <!-- <gazebo reference="base_link_joint">
+    <axis>
+      <dynamics>
+         Low damping allows velocity overshoot and ringing 
+        <damping>0.2</damping>
+        
+         Small static friction 
+        <friction>50</friction>
+        
+         Torsional spring stiffness (lower = more rotational flex/play) 
+        <spring_stiffness>150.0</spring_stiffness>
+        
+         Center reference angle for rest position 
+        <spring_reference>0.0</spring_reference>
+      </dynamics>
+    </axis>
+  </gazebo> -->
+  <!-- Enable self-collision for the entire robot model -->
+  <!-- <gazebo>
+    <self_collide>true</self_collide>
+  </gazebo> -->
+  <!-- ==================== COLOR ASSIGNMENTS ==================== -->
+  <gazebo reference="base_link">
+    <visual>
+      <material>
+        <ambient>0.6 0.6 0.6 1</ambient>
+        <diffuse>0.75 0.75 0.75 1</diffuse>
+        <specular>0.8 0.8 0.8 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="stand_link">
+    <visual>
+      <material>
+        <ambient>0.6 0.6 0.6 1</ambient>
+        <diffuse>0.75 0.75 0.75 1</diffuse>
+        <specular>0.8 0.8 0.8 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="shoulder_link">
+    <visual>
+      <material>
+        <ambient>0.6 0.6 0.6 1</ambient>
+        <diffuse>0.75 0.75 0.75 1</diffuse>
+        <specular>0.8 0.8 0.8 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="elbow_link">
+    <visual>
+      <material>
+        <ambient>0.6 0.6 0.6 1</ambient>
+        <diffuse>0.75 0.75 0.75 1</diffuse>
+        <specular>0.8 0.8 0.8 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="wrist_link">
+    <visual>
+      <material>
+        <ambient>0.15 0.15 0.15 1</ambient>
+        <diffuse>0.2 0.2 0.2 1</diffuse>
+        <specular>0.1 0.1 0.1 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="palm_link">
+    <visual>
+      <material>
+        <ambient>0.7 0.7 0.7 1</ambient>
+        <diffuse>0.85 0.85 0.85 1</diffuse>
+        <specular>0.05 0.05 0.05 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="left_finger_back_bottom_link">
+    <visual>
+      <material>
+        <ambient>0.6 0.6 0.6 1</ambient>
+        <diffuse>0.75 0.75 0.75 1</diffuse>
+        <specular>0.8 0.8 0.8 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="left_finger_back_top_link">
+    <visual>
+      <material>
+        <ambient>0.6 0.6 0.6 1</ambient>
+        <diffuse>0.75 0.75 0.75 1</diffuse>
+        <specular>0.8 0.8 0.8 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="left_finger_front_bottom_link">
+    <visual>
+      <material>
+        <ambient>0.6 0.6 0.6 1</ambient>
+        <diffuse>0.75 0.75 0.75 1</diffuse>
+        <specular>0.8 0.8 0.8 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="left_finger_front_top_link">
+    <visual>
+      <material>
+        <ambient>0.6 0.6 0.6 1</ambient>
+        <diffuse>0.75 0.75 0.75 1</diffuse>
+        <specular>0.8 0.8 0.8 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="right_finger_back_bottom_link">
+    <visual>
+      <material>
+        <ambient>0.6 0.6 0.6 1</ambient>
+        <diffuse>0.75 0.75 0.75 1</diffuse>
+        <specular>0.8 0.8 0.8 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="right_finger_back_top_link">
+    <visual>
+      <material>
+        <ambient>0.6 0.6 0.6 1</ambient>
+        <diffuse>0.75 0.75 0.75 1</diffuse>
+        <specular>0.8 0.8 0.8 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="right_finger_front_bottom_link">
+    <visual>
+      <material>
+        <ambient>0.6 0.6 0.6 1</ambient>
+        <diffuse>0.75 0.75 0.75 1</diffuse>
+        <specular>0.8 0.8 0.8 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="right_finger_front_top_link">
+    <visual>
+      <material>
+        <ambient>0.6 0.6 0.6 1</ambient>
+        <diffuse>0.75 0.75 0.75 1</diffuse>
+        <specular>0.8 0.8 0.8 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="left_finger_link">
+    <visual>
+      <material>
+        <ambient>0.15 0.15 0.15 1</ambient>
+        <diffuse>0.2 0.2 0.2 1</diffuse>
+        <specular>0.1 0.1 0.1 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="right_finger_link">
+    <visual>
+      <material>
+        <ambient>0.15 0.15 0.15 1</ambient>
+        <diffuse>0.2 0.2 0.2 1</diffuse>
+        <specular>0.1 0.1 0.1 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="camera_mount_link">
+    <visual>
+      <material>
+        <ambient>0.15 0.15 0.15 1</ambient>
+        <diffuse>0.2 0.2 0.2 1</diffuse>
+        <specular>0.1 0.1 0.1 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="zed_camera_link">
+    <visual>
+      <material>
+        <ambient>0.1 0.1 0.1 1</ambient>
+        <diffuse>0.15 0.15 0.15 1</diffuse>
+        <specular>0.5 0.5 0.5 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="chassis_link">
+    <visual>
+      <material>
+        <ambient>0.6 0.6 0.6 1</ambient>
+        <diffuse>0.75 0.75 0.75 1</diffuse>
+        <specular>0.8 0.8 0.8 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="left_bogie_link">
+    <visual>
+      <material>
+        <ambient>0.6 0.6 0.6 1</ambient>
+        <diffuse>0.75 0.75 0.75 1</diffuse>
+        <specular>0.8 0.8 0.8 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="right_bogie_link">
+    <visual>
+      <material>
+        <ambient>0.6 0.6 0.6 1</ambient>
+        <diffuse>0.75 0.75 0.75 1</diffuse>
+        <specular>0.8 0.8 0.8 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="left_rocker_link">
+    <visual>
+      <material>
+        <ambient>0.6 0.6 0.6 1</ambient>
+        <diffuse>0.75 0.75 0.75 1</diffuse>
+        <specular>0.8 0.8 0.8 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="right_rocker_link">
+    <visual>
+      <material>
+        <ambient>0.6 0.6 0.6 1</ambient>
+        <diffuse>0.75 0.75 0.75 1</diffuse>
+        <specular>0.8 0.8 0.8 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="back_left_wheel_link">
+    <visual>
+      <material>
+        <ambient>0.15 0.15 0.15 1</ambient>
+        <diffuse>0.2 0.2 0.2 1</diffuse>
+        <specular>0.1 0.1 0.1 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="middle_left_wheel_link">
+    <visual>
+      <material>
+        <ambient>0.15 0.15 0.15 1</ambient>
+        <diffuse>0.2 0.2 0.2 1</diffuse>
+        <specular>0.1 0.1 0.1 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="front_left_wheel_link">
+    <visual>
+      <material>
+        <ambient>0.15 0.15 0.15 1</ambient>
+        <diffuse>0.2 0.2 0.2 1</diffuse>
+        <specular>0.1 0.1 0.1 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="back_right_wheel_link">
+    <visual>
+      <material>
+        <ambient>0.15 0.15 0.15 1</ambient>
+        <diffuse>0.2 0.2 0.2 1</diffuse>
+        <specular>0.1 0.1 0.1 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="middle_right_wheel_link">
+    <visual>
+      <material>
+        <ambient>0.15 0.15 0.15 1</ambient>
+        <diffuse>0.2 0.2 0.2 1</diffuse>
+        <specular>0.1 0.1 0.1 1</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="front_right_wheel_link">
+    <visual>
+      <material>
+        <ambient>0.15 0.15 0.15 1</ambient>
+        <diffuse>0.2 0.2 0.2 1</diffuse>
+        <specular>0.1 0.1 0.1 1</specular>
+      </material>
+    </visual>
+  </gazebo>
 </robot>

@@ -1,0 +1,9 @@
+name, mass, com_x, com_y, com_z, ixx, ixy, ixz, iyy, iyz, izz, joint_name, origin_x, origin_y, origin_z, origin_r, origin_p, origin_yaw
+stand_link, 1.897, 30.61, -15.316, 26.454, ,,,,,, stand_world_joint, 0, 0, 0, 0, 0, 0
+base_link, 1.062, 45.901, -1.015, -0.874, ,,,,,, base_stand_joint, 0, 0, 71, 0, 0, 0
+shoulder_link, 0.505, 139.602, 31.085, 242.064, ,,,,,, shoulder_base_joint, -0.264, 40.749, 44.051, -90, 0, 0
+elbow_link, 2.571, 106.918, -74.613, -58.05, ,,,,,, elbow_shoulder_joint, 0, -404.1815, 48.009, 90, 180, 180
+wrist_link, 0.45, 45.991, -9.299, -7.636, ,,,,,, wrist_elbow_joint, 0, 102.5, -267.4198, 90, 0, 180
+palm_link, 0.453, 32.939, 0.255, -7.153, ,,,,,, palm_wrist_joint, 0, -162.621, 0, -90, 0, -90
+left_finger_link, 0.132, ,,,,,,,,,, left_finger_palm_joint, 32, -24.93, 0, 0, 0, -90
+right_finger_link, 0.132, ,,,,,,,,,, right_finger_palm_joint, 32, 24.93, 0, 0, 180, -90

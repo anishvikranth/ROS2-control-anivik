@@ -36,12 +36,19 @@ def generate_launch_description():
 
     args = [
         DeclareLaunchArgument('gui', default_value='true', description='Show the Gazebo window'),
+        # worlds/world.sdf: sensors, lighting, ground; DART physics (see the note in the file
+        # on why not Bullet-Featherstone).
+        DeclareLaunchArgument('world', default_value=os.path.join(pkg_share, 'worlds', 'world.sdf'),
+                              description='Gazebo world file'),
         DeclareLaunchArgument('open_loop_joints', default_value='none',
                               description='Passed to arm_real.launch.py'),
         DeclareLaunchArgument('use_joy', default_value='true',
                               description='Start joy_node, publishing the joystick on /joy_arm'),
         DeclareLaunchArgument('spawn_cube', default_value='true', description='Spawn the target cube'),
         DeclareLaunchArgument('rviz', default_value='true', description='Start MoveIt RViz'),
+        DeclareLaunchArgument('rover_body', default_value='false',
+                              description="Add the rover body to MoveIt's planning scene (the Gazebo arm "
+                              "itself stands alone on the floor)"),
         DeclareLaunchArgument('real_stack', default_value='true',
                               description='Start arm_real.launch.py. false = Gazebo + virtual ESP only '
                               '(e.g. to run arm_bringup.py, which needs nothing else driving PWM)'),
@@ -74,7 +81,8 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([FindPackageShare('ros_gz_sim'), 'launch', 'gz_sim.launch.py'])),
         launch_arguments={'gz_args': PythonExpression([
-            "'-r empty.sdf' if '", LaunchConfiguration('gui'), "' == 'true' else '-r -s empty.sdf'"])
+            "('-r ' if '", LaunchConfiguration('gui'), "' == 'true' else '-r -s ') + '",
+            LaunchConfiguration('world'), "'"])
         }.items(),
     )
 
@@ -91,11 +99,13 @@ def generate_launch_description():
 
     gz_joint_state_broadcaster = Node(
         package='controller_manager', executable='spawner',
-        arguments=['joint_state_broadcaster', '-c', '/gz/controller_manager'],
+        # Longer switch timeout: right after spawning, Gazebo may not be stepping yet and
+        # the default 5 s activation timeout intermittently fails.
+        arguments=['joint_state_broadcaster', '-c', '/gz/controller_manager', '--switch-timeout', '30'],
     )
     gz_motor_controller = Node(
         package='controller_manager', executable='spawner',
-        arguments=['motor_velocity_controller', '-c', '/gz/controller_manager'],
+        arguments=['motor_velocity_controller', '-c', '/gz/controller_manager', '--switch-timeout', '30'],
     )
 
     # /clock: Gazebo's controller manager runs on ROS (sim) time and can't switch
@@ -129,6 +139,7 @@ def generate_launch_description():
             'pwm_deadband': LaunchConfiguration('pwm_deadband'),
             # The stand sits on Gazebo's floor, ~0.1 m below the stand origin.
             'collision_floor_z': '-0.1',
+            'rover_body': LaunchConfiguration('rover_body'),
         }.items(),
     )
     # Start it only once Gazebo's motors exist, so RoverArmHardware's startup

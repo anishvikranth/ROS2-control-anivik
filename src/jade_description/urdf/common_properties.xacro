@@ -1,0 +1,125 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Shiny Aluminum Gazebo Macro -->
+  <xacro:macro name="gazebo_shiny_aluminum" params="link_name">
+    <gazebo reference="${link_name}">
+      <visual>
+        <material>
+          <ambient>0.6 0.6 0.6 1</ambient>
+          <diffuse>0.75 0.75 0.75 1</diffuse>
+          <specular>0.8 0.8 0.8 1</specular>
+        </material>
+      </visual>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- Black Shiny Gazebo Macro -->
+  <xacro:macro name="gazebo_black_shiny" params="link_name">
+    <gazebo reference="${link_name}">
+      <visual>
+        <material>
+          <ambient>0.1 0.1 0.1 1</ambient>
+          <diffuse>0.15 0.15 0.15 1</diffuse>
+          <specular>0.5 0.5 0.5 1</specular>
+        </material>
+      </visual>
+    </gazebo>
+  </xacro:macro>
+
+  <xacro:macro name="gazebo_off_black" params="link_name">
+    <gazebo reference="${link_name}">
+      <visual>
+        <material>
+          <ambient>0.15 0.15 0.15 1</ambient>
+          <diffuse>0.2 0.2 0.2 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </gazebo>
+  </xacro:macro>
+
+  <xacro:macro name="gazebo_matte_white" params="link_name">
+    <gazebo reference="${link_name}">
+      <visual>
+        <material>
+          <ambient>0.7 0.7 0.7 1</ambient>
+          <diffuse>0.85 0.85 0.85 1</diffuse>
+          <specular>0.05 0.05 0.05 1</specular>
+        </material>
+      </visual>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- Add this near the end of your URDF file, right before </robot> -->
+  <gazebo>
+    <plugin
+      filename="gz-sim-joint-state-publisher-system"
+      name="gz::sim::systems::JointStatePublisher">
+      <topic>joint_states</topic>
+      <update_rate>30</update_rate>
+    </plugin>
+  </gazebo>
+
+  <gazebo>
+    <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+      <!-- Left Wheel Joints -->
+      <left_joint>front_left_wheel_link_joint</left_joint>
+      <left_joint>middle_left_wheel_link_joint</left_joint>
+      <left_joint>back_left_wheel_link_joint</left_joint>
+
+      <!-- Right Wheel Joints -->
+      <right_joint>front_right_wheel_link_joint</right_joint>
+      <right_joint>middle_right_wheel_link_joint</right_joint>
+      <right_joint>back_right_wheel_link_joint</right_joint>
+
+      <!-- Physical Kinematics -->
+      <wheel_separation>0.63</wheel_separation>
+      <wheel_radius>0.12</wheel_radius>
+
+      <!-- Command Limits -->
+      <max_linear_acceleration>5.0</max_linear_acceleration>
+      <max_angular_acceleration>10.0</max_angular_acceleration>
+
+      <!-- ROS / Gazebo Communication -->
+      <topic>cmd_vel</topic>
+      <odom_topic>odom</odom_topic>
+      <tf_topic>tf</tf_topic>
+      <frame_id>odom</frame_id>
+      <child_frame_id>chassis_footprint</child_frame_id>
+      <odom_publisher_frequency>30</odom_publisher_frequency>
+    </plugin>
+  </gazebo>
+
+  <!-- Apply to front_left, front_right, rear_left, and rear_right wheel links -->
+  <gazebo reference="front_left_wheel_link">
+    <mu1>0.5</mu1>
+    <mu2>0.05</mu2> <!-- Low secondary friction allows lateral sliding when turning -->
+    <fdir1>1 0 0</fdir1>
+  </gazebo>
+  <gazebo reference="front_right_wheel_link">
+    <mu1>0.5</mu1>
+    <mu2>0.05</mu2> <!-- Low secondary friction allows lateral sliding when turning -->
+    <fdir1>1 0 0</fdir1>
+  </gazebo>
+  <gazebo reference="middle_left_wheel_link">
+    <mu1>0.5</mu1>
+    <mu2>0.05</mu2> <!-- Low secondary friction allows lateral sliding when turning -->
+    <fdir1>1 0 0</fdir1>
+  </gazebo>
+  <gazebo reference="middle_right_wheel_link">
+    <mu1>0.5</mu1>
+    <mu2>0.05</mu2> <!-- Low secondary friction allows lateral sliding when turning -->
+    <fdir1>1 0 0</fdir1>
+  </gazebo>
+  <gazebo reference="back_left_wheel_link">
+    <mu1>0.5</mu1>
+    <mu2>0.05</mu2> <!-- Low secondary friction allows lateral sliding when turning -->
+    <fdir1>1 0 0</fdir1>
+  </gazebo>
+  <gazebo reference="back_right_wheel_link">
+    <mu1>0.5</mu1>
+    <mu2>0.05</mu2> <!-- Low secondary friction allows lateral sliding when turning -->
+    <fdir1>1 0 0</fdir1>
+  </gazebo>
+</robot>

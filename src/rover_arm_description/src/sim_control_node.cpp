@@ -17,10 +17,9 @@ class SimControlNode : public rclcpp::Node {
                 "elbow_link_joint",
                 "wrist_link_joint",
                 "palm_link_joint",
-                "left_finger_link_joint",
-                "right_finger_link_joint"
+                "right_finger_back_top_link_joint"  // gripper's one actuated joint
             };
-            joint_positions = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+            joint_positions = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
         } 
 
     private:
@@ -41,14 +40,12 @@ void SimControlNode::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg) {
     joint_positions[3] += k * msg->axes[7];     // Pitch
     joint_positions[4] += k * msg->axes[6];     // Roll
     if (msg->axes[3] > 0) {
-        joint_positions[5] += 0.01;
-        joint_positions[6] -= 0.01;
+        joint_positions[5] += 0.01;   // close
     } else if (msg->axes[3] < 0) {
-        joint_positions[5] -= 0.01;
-        joint_positions[6] += 0.01;
+        joint_positions[5] -= 0.01;   // open
     }
 
-    // Joints 0..4 -> arm_controller, 5..6 (fingers) -> gripper_controller.
+    // Joints 0..4 -> arm_controller, 5 (gripper) -> gripper_controller.
     auto send = [this](rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr pub, size_t first, size_t last) {
         auto traj = trajectory_msgs::msg::JointTrajectory();
         traj.header.stamp = this->get_clock()->now();
@@ -61,7 +58,7 @@ void SimControlNode::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg) {
         pub->publish(traj);
     };
     send(trajectory_pub, 0, 5);
-    send(gripper_pub, 5, 7);
+    send(gripper_pub, 5, 6);
 
 }
 

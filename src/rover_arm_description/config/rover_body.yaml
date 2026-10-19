@@ -1,0 +1,13 @@
+# Rover body obstacles for MoveIt, in the arm's stand_link (= MoveIt 'world') frame.
+# Generated from jade_description/urdf/jade.urdf (arm stand on the chassis at 0.323, 0, 0.22),
+# rocker-bogie joints at 0. Regenerate if the rover model or the arm mounting changes.
+obstacles:
+  - {name: back_left_wheel_link, shape: cylinder, dimensions: [0.1840, 0.1197], position: [-0.8921, 0.4286, -0.4090], orientation: [-0.7071, -0.0000, 0.0000, 0.7071]}
+  - {name: back_right_wheel_link, shape: cylinder, dimensions: [0.1840, 0.1197], position: [-0.8943, -0.4229, -0.3990], orientation: [0.7071, 0.0000, 0.0000, 0.7071]}
+  # chassis: jade's 0.33 m bounding box clipped so its top (-0.05) sits just under the arm stand
+  - {name: chassis_link, shape: box, dimensions: [0.5400, 0.5000, 0.2145], position: [-0.3230, 0.0000, -0.1573], orientation: [0.0000, 0.0000, 0.0000, 1.0000]}
+  - {name: front_left_wheel_link, shape: cylinder, dimensions: [0.1840, 0.1197], position: [0.1150, 0.4286, -0.4971], orientation: [-0.7071, 0.0000, 0.0000, 0.7071]}
+  - {name: front_right_wheel_link, shape: cylinder, dimensions: [0.1840, 0.1197], position: [0.1148, -0.4229, -0.4854], orientation: [0.7071, 0.0000, 0.0000, 0.7071]}
+  - {name: middle_left_wheel_link, shape: cylinder, dimensions: [0.1840, 0.1197], position: [-0.3674, 0.4286, -0.4962], orientation: [-0.7071, -0.0000, -0.0000, 0.7071]}
+  - {name: middle_right_wheel_link, shape: cylinder, dimensions: [0.1840, 0.1197], position: [-0.3686, -0.4229, -0.4856], orientation: [0.7071, 0.0000, 0.0000, 0.7071]}
+# Ground under the wheels is ~0.61 m below the stand: use collision_floor_z:=-0.61 on the rover.

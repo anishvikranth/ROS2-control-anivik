@@ -97,6 +97,7 @@ install(
     launch
     config
     models
+    worlds
   DESTINATION share/${PROJECT_NAME}
 )
 

@@ -67,19 +67,20 @@ First time on real hardware? Follow the [First power-on checklist](#first-power-
 
 | Path | What it is |
 |---|---|
-| `src/rover_arm_description` | Arm URDFs (`rover_arm_raw/sim/real.xacro`), meshes, controller configs, launch files and nodes (below) |
+| `src/rover_arm_description` | Arm description (`urdf/rover_arm.xacro` + sim/real variants, see [URDF](#urdf)), meshes, worlds, controller configs, launch files and nodes (below) |
 | `  launch/arm_real.launch.py` | Real arm: `RoverArmHardware`, controllers, teleop, MoveIt, RViz, `arm.py` |
 | `  launch/arm_real_sim.launch.py` | Same stack against Gazebo via `virtual_esp.py` |
 | `  launch/gazebo.launch.py`, `arm.launch.py` | Quick Gazebo sim (position control), optionally with MoveIt |
 | `  src/real_arm_teleop_node.cpp` | Joystick teleop: modes, task-space jogging, named poses, gripper presets |
 | `  scripts/virtual_esp.py` | Simulated ESP32 + motors for `arm_real_sim` (with failure drills) |
 | `  scripts/arm_bringup.py` | Power-on check tool |
-| `  scripts/planning_scene_setup.py` | Adds a collision floor to MoveIt's planning scene |
+| `  scripts/planning_scene_setup.py` | Adds a collision floor and/or the rover body (`config/rover_body.yaml`) to MoveIt's planning scene |
+| `  worlds/world.sdf` | Gazebo world for the arm sims (DART physics, sensors, ground, light) |
 | `  config/ros2_controllers_real.yaml` | Real-arm controllers, gains, tolerances |
 | `src/rover_arm_hardware` | `ros2_control` SystemInterface plugin for the real arm (`RoverArmHardware`) |
 | `src/rover_arm_moveit_config` | MoveIt config: SRDF (groups, **named poses**), kinematics, joint limits, RViz config |
 | `src/rover_description` | Full rover (rocker-bogie) description and Gazebo world with ArUco markers |
-| `src/jade_description` | Rover + arm description (work in progress) |
+| `src/jade_description` | **jade**: the rover with the arm mounted (stand on the chassis at 0.323, 0, 0.22 m), diff drive, Gazebo arm control. Source of `config/rover_body.yaml` |
 | `src/rover_aruco`, `src/rover_aruco_interfaces` | ArUco detection, marker tracking and navigation-goal generation |
 | `avatar_files/` | Copies of the AVATAR files used with the real arm: `arm.c` (ESP32 firmware with encoders) and `arm.py` (Orin-side serial bridge). See [AVATAR files](#avatar-files). |
 
@@ -107,7 +108,9 @@ source install/setup.bash
 | `ros2 launch rover_description gz.launch.py` | Full rover in Gazebo |
 
 `gazebo.launch.py` / `arm.launch.py` drive the simulated arm through **position** interfaces
-(a quick sim). `arm_real_sim.launch.py` runs the exact real-arm stack instead.
+(a quick sim). `arm_real_sim.launch.py` runs the exact real-arm stack instead. Both use
+`worlds/world.sdf` with the **DART** physics engine: with Bullet-Featherstone the gripper's
+mimic linkage locks up; with DART, `gz_ros2_control` drives the mimic joints itself.
 
 ### Real-arm stack in simulation
 
@@ -179,7 +182,8 @@ ros2 launch rover_arm_description arm_real.launch.py open_loop_joints:=wrist_lin
 | `pwm_deadband` | `0.0` | Motor deadband compensation (0 = off) |
 | `rviz` | `true` | Start MoveIt RViz (`false` on a headless Orin) |
 | `start_arm_py` | `true` | Start `arm.py` (`arm_real_sim` sets `false`) |
-| `collision_floor_z` | `none` | Add a floor at this height (m, world frame) to MoveIt's planning scene. `arm_real_sim` sets Gazebo's floor (-0.1). On the rover the deck/body should come from the rover model instead |
+| `rover_body` | `false` | Add the rover chassis + wheels (`config/rover_body.yaml`, from jade) to MoveIt's planning scene. Use when the arm is on the rover |
+| `collision_floor_z` | `none` | Add a floor at this height (m, world frame) to MoveIt's planning scene. `arm_real_sim` sets Gazebo's floor (-0.1). On the rover use `rover_body:=true collision_floor_z:=-0.61` (ground under the wheels) |
 | `avatar_repo_path` | `~/AVATAR` | Where `orin_side/arm.py` is run from |
 | `time_from_start_s` | `0.15` | Trajectory point time used by the teleop node |
 | `cooldown_s` | `0.3` | Debounce for the mode buttons |
@@ -473,25 +477,46 @@ ones used in the Arduino IDE.
 
 ## Known issues
 
-- `gazebo.launch.py` / `arm.launch.py` (quick position-control sim) were updated for the
-  separate gripper controller but not re-tested since; `arm_real_sim.launch.py` is tested.
+- `gazebo.launch.py` / `arm.launch.py` (quick position-control sim) were updated for the v2
+  arm but not re-tested (they always open Gazebo/RViz windows); `arm_real_sim.launch.py` is tested.
+- The full-rover sim (`jade_description`) needs the current upstream `rover_description/urdf/rover_raw.xacro`
+  (wheel joint names its diff drive uses).
 - KDL IK often fails for pose goals on this 5-DOF arm; consider `pick_ik` or position-only IK.
-- MoveIt only knows the arm (and, in sim, the floor). Until the arm is on the rover model, nothing stops it planning through the rover body.
-- The three arm xacros are copies of each other and have drifted (e.g. joint limits in `rover_arm_raw.xacro`).
 - `move_group` logs errors about `DepthImageOctomapUpdater`: `moveit_ros_perception` isn't installed. Harmless until depth-camera obstacle avoidance is needed; then install it or drop `sensors_3d.yaml`.
-- `rover_arm_raw.xacro` uses relative mesh paths from LinkForge, so it can't be shown in RViz directly.
 - While a motor is faulted, holding the joystick makes `arm_controller` log "Holding position due to state tolerance violation" for every new target (safe, just noisy).
+- `rover_body.yaml`'s chassis is jade's coarse bounding box, clipped to sit under the arm stand; the storage cache isn't modelled yet.
 
 ## URDF
 
-There are three main URDFs of the rover's arm:
-* __rover_arm_raw.xacro__: the playground for URDF changes; the raw export from LinkForge (more on that below).
-* __rover_arm_sim.xacro__: used in the Gazebo simulation, with its Gazebo plugins and sensors.
-* __rover_arm_real.xacro__: used on the actual rover, with the `RoverArmHardware` `ros2_control` block.
+The arm is the **v2** export (`urdf/rover_arm.xacro`, from LinkForge): ROS-standard axes (the
+arm points along +X at zero), collision meshes for the shoulder/elbow/wrist/gripper, a gripper
+camera and a ZED RGB-D sensor. One shared description, three variants that only add hardware:
 
-The visuals for all these xacro files are stored in the `meshes` folder within this directory, which should also be the default export location of LinkForge.
+| File | What it adds | Used by |
+|---|---|---|
+| `urdf/rover_arm.xacro` | The arm itself (links, joints, sensors) -- **edit this one** | everything, incl. `jade.xacro` |
+| `urdf/rover_arm_sim.xacro` | `world` link + Gazebo `ros2_control` (`gz_command_interface:=position\|velocity`, `gz_namespace`) | `gazebo.launch.py`, `arm_real_sim.launch.py`, MoveIt demo |
+| `urdf/rover_arm_real.xacro` | `RoverArmHardware` block (6 joints) + its parameters | `arm_real.launch.py` |
+| `rover_arm_moveit_config/config/rover_arm.urdf.xacro` | mock hardware | MoveIt demo |
+
+**Joints (6 actuated):** `base_link_joint`, `shoulder_link_joint` (negative = up, range
+-1.57..+0.39), `elbow_link_joint`, `wrist_link_joint` (pitch), `palm_link_joint` (roll), and the
+gripper's single actuated joint `right_finger_back_top_link_joint` (-0.785 open .. +0.524 closed).
+The other 9 gripper joints are a linkage driven by URDF `<mimic>` tags: `robot_state_publisher`
+and MoveIt compute them; in Gazebo they're declared `mimic="true"` in the ros2_control block.
+
+Changes made to the upstream v2 file while porting (worth agreeing with the mechanical team):
+efforts restored to the CAD torques (v2 had 10 Nm everywhere -- too weak to lift the arm),
+base joint friction 75 -> 1 Nm (75 locked it), shoulder upper limit 0 -> +0.39 (the v1 range; at
+exactly 0 the arm can't go below horizontal and Gazebo freezes the joint).
 
 ## Editing the URDF
+
+After re-exporting `rover_arm.xacro` from LinkForge: keep the joint names; re-check the joint
+limits/efforts above; regenerate MoveIt's collision matrix
+(`/opt/ros/jazzy/lib/moveit_setup_assistant/collisions_updater --urdf rover_arm.urdf.xacro --srdf rover_arm.srdf --output rover_arm.srdf --default --always --keep --trials 20000`
+in `rover_arm_moveit_config/config`); check the named poses (`check_state_validity`, or LB + A/B/X/Y in sim).
+
 To edit the URDF of the rover arm or to add new features such as sensors, it must be done using LinkForge, which is a blender plugin.
 
 After LinkForge is installed, follow the steps below to make your own URDFs or edit the current one.

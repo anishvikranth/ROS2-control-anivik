@@ -24,19 +24,9 @@ joint_limits:
     max_velocity: 1.0
     has_acceleration_limits: true
     max_acceleration: 2.0
-  left_finger_link_joint:
-    has_velocity_limits: true
-    max_velocity: 1.0
-    has_acceleration_limits: true
-    max_acceleration: 2.0
   palm_link_joint:
     has_velocity_limits: true
     max_velocity: 0.5
-    has_acceleration_limits: true
-    max_acceleration: 2.0
-  right_finger_link_joint:
-    has_velocity_limits: true
-    max_velocity: 1.0
     has_acceleration_limits: true
     max_acceleration: 2.0
   shoulder_link_joint:
@@ -47,5 +37,10 @@ joint_limits:
   wrist_link_joint:
     has_velocity_limits: true
     max_velocity: 0.5
+    has_acceleration_limits: true
+    max_acceleration: 2.0
+  right_finger_back_top_link_joint:   # the gripper's one actuated joint
+    has_velocity_limits: true
+    max_velocity: 1.0
     has_acceleration_limits: true
     max_acceleration: 2.0

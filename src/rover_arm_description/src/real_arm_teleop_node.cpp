@@ -1,6 +1,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <Eigen/Dense>
 #include <moveit/robot_model/robot_model.hpp>
+#include <moveit/robot_model/revolute_joint_model.hpp>
 #include <moveit/robot_state/robot_state.hpp>
 #include <srdfdom/model.h>
 #include <urdf/model.h>
@@ -40,7 +41,7 @@
 // | axes[4]    | Elbow Joint             | elbow_link_joint         | Continuous (+/-)  |
 // | axes[7]    | Wrist Pitch Joint       | wrist_link_joint         | Continuous (+/-)  |
 // | axes[6]    | Palm Roll Joint         | palm_link_joint          | Continuous (+/-)  |
-// | axes[3]    | Left/Right Finger Joints| left/right_finger_joint  | Discrete Open/Close|
+// | axes[3]    | Gripper (one joint)     | right_finger_back_top_.. | Discrete Open/Close|
 
 
 
@@ -102,7 +103,9 @@ public:
         // Task-space jogging. robot_description(_semantic) come from the launch file.
         this->declare_parameter<std::string>("robot_description", "");
         this->declare_parameter<std::string>("robot_description_semantic", "");
-        this->declare_parameter<std::vector<double>>("tool_offset", {0.0, 0.17, 0.0});  // tool point in palm frame (m)
+        // Tool point in the palm frame (m). Empty = tool_length along the palm roll axis.
+        this->declare_parameter<std::vector<double>>("tool_offset", std::vector<double>{});
+        this->declare_parameter<double>("tool_length", 0.17);
         this->declare_parameter<std::vector<double>>("task_linear_levels", {0.02, 0.05, 0.10});   // m/s per speed tier
         this->declare_parameter<std::vector<double>>("task_angular_levels", {0.10, 0.25, 0.50});  // rad/s per tier
         this->declare_parameter<double>("task_min_z", -1.0e9);  // keep the tool point above this height (world z)
@@ -165,19 +168,19 @@ public:
             "elbow_link_joint",
             "wrist_link_joint",
             "palm_link_joint",
-            "left_finger_link_joint",
-            "right_finger_link_joint"
+            "right_finger_back_top_link_joint"  // the gripper's one actuated joint
         };
 
         // Real starting targets come from /joint_states (see resync_targets);
         // nothing is sent to arm_controller until the first one arrives.
-        joint_positions = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        joint_positions.assign(joint_names.size(), 0.0);
 
-        // From rover_arm_real.xacro's <limit> tags. Update here if the arm's
+        // From rover_arm.xacro's <limit> tags (v2 arm). Update here if the arm's
         // physical limits ever change -- nothing keeps these in sync with
-        // the xacro automatically.
-        lower_limits = {-1.570795, -0.3927, -3.141593, -1.570795, -3.141593, -1.570795, -0.785398};
-        upper_limits = { 1.570795,  1.5708,  3.141593,  1.570795,  3.141593,  0.785398,  1.570795};
+        // the xacro automatically. palm_link_joint is "continuous" in the URDF;
+        // it's kept to +/-pi here so the camera cable can't wind up.
+        lower_limits = {-1.570795, -1.570795, -3.141593, -1.570795, -3.141593, -0.785398};
+        upper_limits = { 1.570795,  0.3927,    3.141593,  1.570795,  3.141593,  0.523598};
 
         // Step-size tiers -- replaces v2's pwm_array = {127, 180, 255}.
         // Start conservative; widen once you've confirmed real motor
@@ -251,7 +254,8 @@ private:
     std::vector<int32_t> prev_buttons_;  // for press (rising-edge) detection
 
     // Named poses / gripper presets (MANUAL mode)
-    static constexpr size_t kArmJoints = 5;  // joint_names[0..4]; [5..6] are the fingers
+    static constexpr size_t kArmJoints = 5;      // joint_names[0..4]
+    static constexpr size_t kGripperJoints = 1;  // joint_names[5]: the gripper's actuated joint
     size_t pose_modifier_button_ = 4;
     size_t gripper_modifier_button_ = 5;
     size_t pose_record_button_ = 7;
@@ -272,7 +276,9 @@ private:
     std::unique_ptr<moveit::core::RobotState> kin_state_;
     const moveit::core::JointModelGroup * arm_jmg_ = nullptr;
     const moveit::core::LinkModel * palm_link_ = nullptr;
-    Eigen::Vector3d tool_offset_{0.0, 0.17, 0.0};
+    Eigen::Vector3d tool_offset_{0.17, 0.0, 0.0};
+    Eigen::Vector3d tool_axis_local_{1.0, 0.0, 0.0};  // palm roll axis, palm frame
+    Eigen::Vector3d fwd0_{1.0, 0.0, 0.0};             // horizontal arm heading at base angle 0
     std::vector<double> task_linear_levels_, task_angular_levels_, task_max_joint_speed_;
     double task_min_z_ = -1.0e9;
     double task_damping_ = 0.03;
@@ -461,10 +467,8 @@ void RealArmTeleopNode::velocity_timer_callback() {
     cmd.data[4] = v * axes[6];     // Palm (roll)
     if (axes[3] > 0) {
         cmd.data[5] = v;
-        cmd.data[6] = -v;
     } else if (axes[3] < 0) {
         cmd.data[5] = -v;
-        cmd.data[6] = v;
     }
 
     // Soft limits from /joint_states. With open-loop motors these positions
@@ -506,7 +510,8 @@ void RealArmTeleopNode::load_poses() {
                 (poses_.count(pose_buttons_[i]) ? "" : " (NOT IN SRDF)");
     }
     RCLCPP_INFO(this->get_logger(), "Named poses: %s. Gripper presets: RB+A=open%s, RB+B=closed%s.", list.c_str(),
-                gripper_open_.size() == 2 ? "" : " (missing)", gripper_closed_.size() == 2 ? "" : " (missing)");
+                gripper_open_.size() == kGripperJoints ? "" : " (missing)",
+                gripper_closed_.size() == kGripperJoints ? "" : " (missing)");
 }
 
 void RealArmTeleopNode::publish_arm(const rclcpp::Time & now, double duration_s) {
@@ -559,12 +564,12 @@ bool RealArmTeleopNode::start_pose_move(const std::string & name, const rclcpp::
 }
 
 void RealArmTeleopNode::start_gripper_move(const std::vector<double> & target, const char * label, const rclcpp::Time & now) {
-    if (target.size() != 2) {
+    if (target.size() != kGripperJoints) {
         RCLCPP_WARN(this->get_logger(), "Gripper '%s' preset missing from the SRDF -- ignored.", label);
         return;
     }
     double max_delta = 0.0;
-    for (size_t k = 0; k < 2; ++k) {
+    for (size_t k = 0; k < kGripperJoints; ++k) {
         const size_t i = kArmJoints + k;
         const double t = std::clamp(target[k], lower_limits[i], upper_limits[i]);
         const auto m = measured_positions_.find(joint_names[i]);
@@ -607,7 +612,7 @@ void RealArmTeleopNode::init_kinematics() {
     task_min_z_ = this->get_parameter("task_min_z").as_double();
     task_damping_ = this->get_parameter("task_damping").as_double();
     const auto off = vec("tool_offset");
-    if (off.size() == 3) tool_offset_ = Eigen::Vector3d(off[0], off[1], off[2]);
+    const double tool_length = this->get_parameter("tool_length").as_double();
     if (task_linear_levels_.size() != k_levels.size() || task_angular_levels_.size() != k_levels.size() ||
         task_max_joint_speed_.size() != kArmJoints) {
         RCLCPP_WARN(this->get_logger(), "task_* parameter sizes are wrong -- using defaults.");
@@ -635,8 +640,21 @@ void RealArmTeleopNode::init_kinematics() {
     }
     kin_state_ = std::make_unique<moveit::core::RobotState>(robot_model_);
     kin_state_->setToDefaultValues();
-    RCLCPP_INFO(this->get_logger(), "Task-space jogging ready (button B). Tool point %.2f m ahead of the palm.",
-                tool_offset_.norm());
+
+    // Directions come from the robot model, so a re-exported URDF with different axes
+    // doesn't silently break jogging: the tool axis is the palm roll joint's axis, and
+    // "forward" is the arm's horizontal heading at the zero pose.
+    const auto * roll = dynamic_cast<const moveit::core::RevoluteJointModel *>(robot_model_->getJointModel("palm_link_joint"));
+    if (roll) tool_axis_local_ = roll->getAxis().normalized();
+    tool_offset_ = off.size() == 3 ? Eigen::Vector3d(off[0], off[1], off[2]) : Eigen::Vector3d(tool_length * tool_axis_local_);
+    kin_state_->setJointGroupPositions(arm_jmg_, Eigen::VectorXd::Zero(kArmJoints));
+    kin_state_->update();
+    const Eigen::Vector3d base = kin_state_->getGlobalLinkTransform(robot_model_->getLinkModel("base_link")).translation();
+    Eigen::Vector3d reach = kin_state_->getGlobalLinkTransform(palm_link_) * tool_offset_ - base;
+    reach.z() = 0.0;
+    if (reach.norm() > 1e-3) fwd0_ = reach.normalized();
+    RCLCPP_INFO(this->get_logger(), "Task-space jogging ready (button B). Tool point %.2f m along the palm roll axis; "
+                "forward at base 0 = (%.2f, %.2f).", tool_offset_.norm(), fwd0_.x(), fwd0_.y());
 }
 
 // One joystick step of task-space jogging: stick command (forward, left, up, pitch,
@@ -667,11 +685,11 @@ void RealArmTeleopNode::task_space_step(const sensor_msgs::msg::Joy & msg, const
     const Eigen::Vector3d tool = palm * tool_offset_;
 
     // Directions: "forward" follows the arm's heading (base joint), up is world up.
-    const double th = q[0];
-    const Eigen::Vector3d fwd(std::sin(th), -std::cos(th), 0.0);
+    const double th = q[0];  // base joint rotates about world z
+    const Eigen::Vector3d fwd = Eigen::AngleAxisd(th, Eigen::Vector3d::UnitZ()) * fwd0_;
     const Eigen::Vector3d up(0.0, 0.0, 1.0);
     const Eigen::Vector3d left = up.cross(fwd);
-    const Eigen::Vector3d tool_axis = palm.rotation().col(1);  // palm +y = approach / roll axis
+    const Eigen::Vector3d tool_axis = palm.rotation() * tool_axis_local_;
 
     // Floor: no further downward motion once the tool point reaches task_min_z.
     if (tool.z() <= task_min_z_ && up_cmd < 0.0) {
@@ -928,11 +946,9 @@ void RealArmTeleopNode::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     }
     if (!gripper_move_active_) {
         if (msg->axes[3] > 0) {
-            joint_positions[5] += k;
-            joint_positions[6] -= k;
+            joint_positions[5] += k;   // close
         } else if (msg->axes[3] < 0) {
-            joint_positions[5] -= k;
-            joint_positions[6] += k;
+            joint_positions[5] -= k;   // open
         }
     }
 

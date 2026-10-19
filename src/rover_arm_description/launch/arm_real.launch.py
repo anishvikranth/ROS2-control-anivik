@@ -12,7 +12,7 @@ from moveit_configs_utils import MoveItConfigsBuilder
 
 
 ARM_JOINTS = ["base_link_joint", "shoulder_link_joint", "elbow_link_joint", "wrist_link_joint", "palm_link_joint"]
-FINGER_JOINTS = ["left_finger_link_joint", "right_finger_link_joint"]
+GRIPPER_JOINTS = ["right_finger_back_top_link_joint"]  # one actuated joint; the linkage is mimic
 
 
 def srdf_poses(srdf_xml):
@@ -25,8 +25,8 @@ def srdf_poses(srdf_xml):
         if gs.get("group") == "arm" and all(j in joints for j in ARM_JOINTS):
             names.append(gs.get("name"))
             values += [joints[j] for j in ARM_JOINTS]
-        elif gs.get("group") == "gripper" and all(j in joints for j in FINGER_JOINTS):
-            gripper[gs.get("name")] = [joints[j] for j in FINGER_JOINTS]
+        elif gs.get("group") == "gripper" and all(j in joints for j in GRIPPER_JOINTS):
+            gripper[gs.get("name")] = [joints[j] for j in GRIPPER_JOINTS]
     return {
         "pose_names": names,
         "pose_values": values,
@@ -182,14 +182,21 @@ def launch_setup(context):
         condition=IfCondition(LaunchConfiguration("rviz")),
     )
 
-    # Optional collision floor for MoveIt (see planning_scene_setup.py).
+    # Optional obstacles for MoveIt (see planning_scene_setup.py): a floor and/or the rover body.
     floor_z = LaunchConfiguration("collision_floor_z").perform(context).strip()
-    scene_setup = [] if floor_z in ("", "none") else [Node(
+    rover_body = LaunchConfiguration("rover_body").perform(context).strip().lower() == "true"
+    scene_params = {}
+    if floor_z not in ("", "none"):
+        scene_params["floor_z"] = float(floor_z)
+    if rover_body:
+        scene_params["rover_body_file"] = os.path.join(
+            get_package_share_directory("rover_arm_description"), "config", "rover_body.yaml")
+    scene_setup = [Node(
         package="rover_arm_description",
         executable="planning_scene_setup.py",
         output="screen",
-        parameters=[{"floor_z": float(floor_z)}],
-    )]
+        parameters=[scene_params],
+    )] if scene_params else []
 
     return scene_setup + [
         world_tf,
@@ -237,6 +244,11 @@ def generate_launch_description():
         "collision_floor_z", default_value="none",
         description="Add a floor at this height (m, world frame) to MoveIt's planning scene; "
         "'none' = no floor. arm_real_sim sets Gazebo's floor height.")
+
+    rover_body_arg = DeclareLaunchArgument(
+        "rover_body", default_value="false",
+        description="Add the rover chassis + wheels (config/rover_body.yaml, from the jade model) to "
+        "MoveIt's planning scene. Use when the arm is mounted on the rover, not on a test stand.")
 
     rviz_arg = DeclareLaunchArgument(
         "rviz", default_value="true", description="Start MoveIt RViz (false on a headless Orin)")
@@ -289,6 +301,7 @@ def generate_launch_description():
             start_arm_py_arg,
             rviz_arg,
             collision_floor_arg,
+            rover_body_arg,
             ff_gain_arg,
             pwm_deadband_arg,
             time_from_start_arg,
