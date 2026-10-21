@@ -349,6 +349,13 @@
       </geometry>
     </collision>
   </link>
+  <!-- Arm joint limits: the <limit> lower/upper below are HARD STOPS, 10 deg outside the
+       ranges the arm actually uses. The working (soft) limits are in
+       rover_arm_moveit_config/config/joint_limits.yaml (MoveIt, RViz sliders) and
+       real_arm_teleop_node.cpp. rover_arm_sim.xacro's command min/max match them, but
+       gz_ros2_control doesn't enforce those. In Gazebo's DART engine a velocity-driven joint
+       driven onto its stop could stay stuck there; the 10 deg margin keeps MoveIt's plans
+       clear of it. -->
   <!-- Joints. Arm efforts are the CAD motor torques (from the v1 export); 10 Nm everywhere
        was too weak to lift the arm in a physics engine that enforces effort limits. -->
   <joint name="base_link_joint" type="revolute">
@@ -356,7 +363,7 @@
     <parent link="stand_link" />
     <child link="base_link" />
     <axis xyz="0 0 1" />
-    <limit effort="34.32" velocity="1" lower="-1.570795" upper="1.570795" />
+    <limit effort="34.32" velocity="1" lower="-1.745329" upper="1.745329" />
     <!-- friction was 75 Nm: more than the joint's 34 Nm effort, so under DART the base could
          never turn. The real base is held by its motor/gearbox, not by joint friction. -->
     <dynamics friction="1.0" damping="1.0" />
@@ -371,7 +378,7 @@
     <parent link="shoulder_link" />
     <child link="elbow_link" />
     <axis xyz="0 1 0" />
-    <limit effort="123.56" velocity="1" lower="-3.141593" upper="3.141593" />
+    <limit effort="123.56" velocity="1" lower="-3.316126" upper="3.316126" />
   </joint>
   <joint name="left_finger_back_bottom_link_joint" type="revolute">
     <origin xyz="0.031938 0.024947 -0.0225" rpy="0 0 0" />
@@ -413,12 +420,15 @@
     <limit effort="10" velocity="1" lower="-3.141593" upper="3.141593" />
     <mimic joint="right_finger_back_top_link_joint" />
   </joint>
-  <joint name="palm_link_joint" type="continuous">
+  <joint name="palm_link_joint" type="revolute">
     <origin xyz="0.163045 -0.000975 0.000003" rpy="0 0 0" />
     <parent link="wrist_link" />
     <child link="palm_link" />
     <axis xyz="1 0 0" />
-    <limit effort="10" velocity="1" lower="0" upper="0" />
+    <!-- Palm roll limited to +-90 deg for now (safe range; set the real bevel/cable range
+         when known). Revolute rather than continuous: MoveIt ignores position limits on a
+         continuous joint, and RViz's Joints tab gives an unbounded joint no editor. -->
+    <limit effort="10" velocity="1" lower="-1.745329" upper="1.745329" />
   </joint>
   <joint name="right_finger_back_bottom_link_joint" type="revolute">
     <origin xyz="0.03232 -0.024728 0.01734" rpy="0 0 0" />
@@ -467,14 +477,14 @@
     <!-- v1 range (up to vertical, 22.5 deg below horizontal), in v2's sign convention. The v2
          export had upper="0": no motion below horizontal, and a joint starting exactly on its
          limit is frozen in Gazebo's DART engine. Confirm with the mechanical team. -->
-    <limit effort="137.3" velocity="1" lower="-1.570795" upper="0.3927" />
+    <limit effort="137.3" velocity="1" lower="-1.745329" upper="0.567232" />
   </joint>
   <joint name="wrist_link_joint" type="revolute">
     <origin xyz="0.266996 -0.096997 -0.000596" rpy="0 0 0" />
     <parent link="elbow_link" />
     <child link="wrist_link" />
     <axis xyz="0 1 0" />
-    <limit effort="27.46" velocity="1" lower="-1.570795" upper="1.570795" />
+    <limit effort="27.46" velocity="1" lower="-1.745329" upper="1.745329" />
   </joint>
   <joint name="zed_camera_link_joint" type="fixed">
     <origin xyz="0.052553 -0.000162 0" rpy="0 0 0" />

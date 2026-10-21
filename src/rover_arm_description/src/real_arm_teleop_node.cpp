@@ -212,10 +212,11 @@ public:
 
         // From rover_arm.xacro's <limit> tags (v2 arm). Update here if the arm's
         // physical limits ever change -- nothing keeps these in sync with
-        // the xacro automatically. palm_link_joint is "continuous" in the URDF;
-        // it's kept to +/-pi here so the camera cable can't wind up.
-        lower_limits = {-1.570795, -1.570795, -3.141593, -1.570795, -3.141593, -0.785398};
-        upper_limits = { 1.570795,  0.3927,    3.141593,  1.570795,  3.141593,  0.523598};
+        // the xacro automatically. These are the SOFT limits (as in MoveIt's
+        // joint_limits.yaml); the URDF's hard stops are 10 deg wider. palm_link_joint
+        // is limited to +/-90 deg for now (the safe range until the real one is known).
+        lower_limits = {-1.570795, -1.570795, -3.141593, -1.570795, -1.570796, -0.785398};
+        upper_limits = { 1.570795,  0.3927,    3.141593,  1.570795,  1.570796,  0.523598};
 
         // Step-size tiers -- replaces v2's pwm_array = {127, 180, 255}.
         // Start conservative; widen once you've confirmed real motor

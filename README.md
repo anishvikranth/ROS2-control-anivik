@@ -627,6 +627,25 @@ efforts restored to the CAD torques (v2 had 10 Nm everywhere -- too weak to lift
 base joint friction 75 -> 1 Nm (75 locked it), shoulder upper limit 0 -> +0.39 (the v1 range; at
 exactly 0 the arm can't go below horizontal and Gazebo freezes the joint).
 
+**Joint limits: soft and hard.** The URDF `<limit>` values are hard stops, 10° outside the
+ranges the arm uses. The working (soft) limits are in `rover_arm_moveit_config/config/joint_limits.yaml`
+(MoveIt plans, RViz Joints-tab sliders) and `real_arm_teleop_node.cpp` (joystick):
+
+| Joint | Soft limit | Hard stop (URDF) |
+|---|---|---|
+| base | ±90° | ±100° |
+| shoulder | −90° .. +22.5° | −100° .. +32.5° |
+| elbow | ±180° | ±190° |
+| wrist | ±90° | ±100° |
+| palm (roll) | ±90° (safe range until the real one is known) | ±100° |
+
+Why: in Gazebo (DART), a joint driven onto its stop could stay stuck there; with soft limits
+inside the stops MoveIt never plans that far (tested: palm goals of ±95° plan to ±90°). The
+palm is `revolute`, not `continuous`: MoveIt ignores position limits on continuous joints, and
+RViz's Joints tab gives an unbounded joint no slider. `rover_arm_sim.xacro`'s command `min`/`max`
+match the soft limits but `gz_ros2_control` doesn't enforce them, so trajectories published
+by hand can still reach the hard stops in sim.
+
 ## Editing the URDF
 
 After re-exporting `rover_arm.xacro` from LinkForge: keep the joint names; re-check the joint
