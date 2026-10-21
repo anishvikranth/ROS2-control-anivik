@@ -42,11 +42,15 @@ class GoalGenerator(Node):
         self.goal_pub = self.create_publisher(PoseStamped, '/goal_pose', 10)
         self.target_id_pub = self.create_publisher(Int32, '/current_target_id', 10)
 
-        # Ground truth static positions from SDF world
+        # Fallback marker positions as a flat [id, x, y, yaw, ...] list. The default is
+        # aruco_world.sdf; terrain_aruco.launch.py passes config/terrain_markers.yaml.
+        self.declare_parameter('marker_poses', [0.0, 5.0, 0.0, 0.0,
+                                                1.0, 9.0, -1.0, -0.95,
+                                                2.0, 15.0, 2.0, 1.12])
+        flat = list(self.get_parameter('marker_poses').get_parameter_value().double_array_value)
         self.sdf_marker_poses = {
-            0: (5.0, 0.0, 0.25, 0.0, 0.0, 0.0),
-            1: (9.0, -1.0, 0.25, 0.0, 0.0, -0.95),
-            2: (15.0, 2.0, 0.25, 0.0, 0.0, 1.12),
+            int(flat[k]): (flat[k + 1], flat[k + 2], 0.25, 0.0, 0.0, flat[k + 3])
+            for k in range(0, len(flat) - 3, 4)
         }
 
         # Set of permanently completed marker IDs

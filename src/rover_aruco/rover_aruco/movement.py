@@ -23,6 +23,13 @@ UPDATED & FIXED:
 5. Turn-In-Place Dead Band: turning in place starts above turn_in_place_threshold
    and only ends below turn_in_place_exit, so the mode doesn't flip every tick
    when the heading error hovers near the threshold (it did on a hillside).
+6. No Pivoting While Driving: the turn rate is capped so the inner wheels keep at
+   least min_inner_wheel_ratio of the forward speed (track_width sets the geometry).
+   v=0.29, w=0.9 nearly stops the inner side - the same pivot that stalls skid-steer
+   - and jade stalled on it repeatedly. Bigger corrections wait for turn-in-place.
+7. A back-up only counts as progress for the recovery count once the rover is
+   recovery_reset_dist from where it first stalled; otherwise backing up reset the
+   count every time and the rover looped forever instead of reaching ABORTED.
 """
 
 import math
@@ -89,6 +96,12 @@ class GoalFollowerAvoider(Node):
         self.min_turn_speed = self.get_parameter('min_turn_speed').get_parameter_value().double_value
         self._turning_in_place = False
 
+        # ---- Skid-Steer Turn Limit While Driving ----
+        self.declare_parameter('track_width', 0.63)            # m, as DiffDrive's wheel_separation
+        self.declare_parameter('min_inner_wheel_ratio', 0.3)   # inner wheels keep >= this x forward speed
+        self.track_width = self.get_parameter('track_width').get_parameter_value().double_value
+        self.min_inner_wheel_ratio = self.get_parameter('min_inner_wheel_ratio').get_parameter_value().double_value
+
         # ---- Stall Recovery ----
         self.declare_parameter('stall_timeout_sec', 3.0)
         self.declare_parameter('stall_min_dist', 0.05)      # meters moved that count as progress
@@ -96,13 +109,16 @@ class GoalFollowerAvoider(Node):
         self.declare_parameter('backup_duration_sec', 1.5)
         self.declare_parameter('backup_speed', 0.3)         # m/s
         self.declare_parameter('max_recoveries', 3)         # back-ups without progress before ABORTED
+        self.declare_parameter('recovery_reset_dist', 0.5)  # m from the first stall that counts as progress
         self.stall_timeout_sec = self.get_parameter('stall_timeout_sec').get_parameter_value().double_value
         self.stall_min_dist = self.get_parameter('stall_min_dist').get_parameter_value().double_value
         self.stall_min_yaw = self.get_parameter('stall_min_yaw').get_parameter_value().double_value
         self.backup_duration_sec = self.get_parameter('backup_duration_sec').get_parameter_value().double_value
         self.backup_speed = self.get_parameter('backup_speed').get_parameter_value().double_value
         self.max_recoveries = self.get_parameter('max_recoveries').get_parameter_value().integer_value
+        self.recovery_reset_dist = self.get_parameter('recovery_reset_dist').get_parameter_value().double_value
         self._recovery_count = 0        # back-ups since progress was last seen
+        self._first_stall_xy = None     # where the current run of back-ups started
         self._stall_ref = None          # (time, x, y, yaw) when progress was last seen
         self._recover_start_time = None
         self._phase_before_recover = 'APPROACH'
@@ -178,6 +194,7 @@ class GoalFollowerAvoider(Node):
             self._recovery_count = 0
             self._turning_in_place = False
             self._stall_ref = None
+            self._first_stall_xy = None
 
         self.get_logger().info(
             f'Goal Updated for Target ID={target_id}: '
@@ -259,8 +276,10 @@ class GoalFollowerAvoider(Node):
         else:
             speed_factor = math.cos(yaw_error)
             cmd.linear.x = min(self.max_linear_speed, self.kp_linear * dist_to_goal) * speed_factor
-            cmd.angular.z = self._clamp(
-                self.kp_angular * yaw_error, -self.max_angular_speed, self.max_angular_speed)
+            # Keep the inner wheels turning forward: inner = v - |w| * track / 2 >= ratio * v
+            w_max = min(self.max_angular_speed,
+                        2.0 * cmd.linear.x * (1.0 - self.min_inner_wheel_ratio) / self.track_width)
+            cmd.angular.z = self._clamp(self.kp_angular * yaw_error, -w_max, w_max)
 
         self._publish_and_check_stall(cmd)
 
@@ -318,10 +337,16 @@ class GoalFollowerAvoider(Node):
         turned = abs(self._normalize_angle(self.yaw - yaw0)) > self.stall_min_yaw
         if moved or turned:
             self._stall_ref = (now, self.x, self.y, self.yaw)
-            self._recovery_count = 0
+            if self._first_stall_xy is not None and math.hypot(
+                    self.x - self._first_stall_xy[0],
+                    self.y - self._first_stall_xy[1]) > self.recovery_reset_dist:
+                self._recovery_count = 0
+                self._first_stall_xy = None
             return
 
         if (now - t0).nanoseconds / 1e9 > self.stall_timeout_sec:
+            if self._first_stall_xy is None:
+                self._first_stall_xy = (self.x, self.y)
             if self._recovery_count >= self.max_recoveries:
                 self.cmd_pub.publish(Twist())
                 self.phase = 'ABORTED'

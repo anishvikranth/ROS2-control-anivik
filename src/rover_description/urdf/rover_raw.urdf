@@ -288,7 +288,7 @@
     <parent link="left_rocker_link"/>
     <child link="left_bogie_link"/>
     <axis xyz="0 1 0"/>
-    <limit effort="10" lower="-3.141593" upper="3.141593" velocity="1"/>
+    <limit effort="10" lower="-0.5236" upper="0.5236" velocity="1"/>
   </joint>
   <joint name="left_rocker_link_joint" type="revolute">
     <origin rpy="0 0 0" xyz="-0.017593 0.313117 0.118479"/>
@@ -316,7 +316,7 @@
     <parent link="right_rocker_link"/>
     <child link="right_bogie_link"/>
     <axis xyz="0 1 0"/>
-    <limit effort="10" lower="-3.141593" upper="3.141593" velocity="1"/>
+    <limit effort="10" lower="-0.5236" upper="0.5236" velocity="1"/>
   </joint>
   <joint name="right_rocker_link_joint" type="revolute">
     <origin rpy="0 0 0" xyz="-0.018794 -0.317419 0.125316"/>

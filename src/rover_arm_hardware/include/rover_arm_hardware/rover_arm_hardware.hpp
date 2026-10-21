@@ -12,7 +12,13 @@
 #include "hardware_interface/handle.hpp"
 #include "hardware_interface/hardware_info.hpp"
 #include "hardware_interface/system_interface.hpp"
+// Jazzy's ros2_control (4.x) passes on_init a HardwareComponentInterfaceParams; Humble's
+// (2.x) only has on_init(const HardwareInfo &). Build against whichever is installed so the
+// same source compiles on the laptop (Jazzy) and the Orin (JetPack 6 = Ubuntu 22.04, Humble).
+#if __has_include("hardware_interface/types/hardware_component_interface_params.hpp")
 #include "hardware_interface/types/hardware_component_interface_params.hpp"
+#define ROVER_ARM_HW_INIT_PARAMS 1
+#endif
 #include "hardware_interface/types/hardware_interface_return_values.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/state.hpp"
@@ -62,8 +68,12 @@ class RoverArmHardware : public hardware_interface::SystemInterface
 public:
   RCLCPP_SHARED_PTR_DEFINITIONS(RoverArmHardware)
 
+#ifdef ROVER_ARM_HW_INIT_PARAMS
   hardware_interface::CallbackReturn on_init(
     const hardware_interface::HardwareComponentInterfaceParams & params) override;
+#else
+  hardware_interface::CallbackReturn on_init(const hardware_interface::HardwareInfo & info) override;
+#endif
 
   std::vector<hardware_interface::StateInterface> export_state_interfaces() override;
   std::vector<hardware_interface::CommandInterface> export_command_interfaces() override;

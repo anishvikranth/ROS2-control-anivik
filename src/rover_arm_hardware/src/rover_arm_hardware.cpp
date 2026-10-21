@@ -37,8 +37,13 @@ double param_or(
 }
 }  // namespace
 
+#ifdef ROVER_ARM_HW_INIT_PARAMS
 hardware_interface::CallbackReturn RoverArmHardware::on_init(
   const hardware_interface::HardwareComponentInterfaceParams & params)
+#else
+hardware_interface::CallbackReturn RoverArmHardware::on_init(
+  const hardware_interface::HardwareInfo & params)
+#endif
 {
   if (
     hardware_interface::SystemInterface::on_init(params) !=

@@ -1,5 +1,10 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!-- Topics for DiffDrive's wheel odometry. jade_terrain.xacro moves them aside so a
+       ground-truth odometry plugin can own /odom and odom -> chassis_footprint. -->
+  <xacro:arg name="diff_drive_odom_topic" default="odom" />
+  <xacro:arg name="diff_drive_tf_topic" default="tf" />
+
 
   <!-- Shiny Aluminum Gazebo Macro -->
   <xacro:macro name="gazebo_shiny_aluminum" params="link_name">
@@ -83,43 +88,48 @@
 
       <!-- ROS / Gazebo Communication -->
       <topic>cmd_vel</topic>
-      <odom_topic>odom</odom_topic>
-      <tf_topic>tf</tf_topic>
+      <odom_topic>$(arg diff_drive_odom_topic)</odom_topic>
+      <tf_topic>$(arg diff_drive_tf_topic)</tf_topic>
       <frame_id>odom</frame_id>
       <child_frame_id>chassis_footprint</child_frame_id>
       <odom_publisher_frequency>30</odom_publisher_frequency>
     </plugin>
   </gazebo>
 
+  <!-- Wheel friction. Defaults keep jade's tuning; jade_terrain.xacro declares these args
+       first (first declaration wins) to change them for the terrain sim. -->
+  <xacro:arg name="wheel_mu1" default="0.5" />
+  <xacro:arg name="wheel_mu2" default="0.05" />
+
   <!-- Apply to front_left, front_right, rear_left, and rear_right wheel links -->
   <gazebo reference="front_left_wheel_link">
-    <mu1>0.5</mu1>
-    <mu2>0.05</mu2> <!-- Low secondary friction allows lateral sliding when turning -->
+    <mu1>$(arg wheel_mu1)</mu1>
+    <mu2>$(arg wheel_mu2)</mu2> <!-- Low secondary friction allows lateral sliding when turning -->
     <fdir1>1 0 0</fdir1>
   </gazebo>
   <gazebo reference="front_right_wheel_link">
-    <mu1>0.5</mu1>
-    <mu2>0.05</mu2> <!-- Low secondary friction allows lateral sliding when turning -->
+    <mu1>$(arg wheel_mu1)</mu1>
+    <mu2>$(arg wheel_mu2)</mu2> <!-- Low secondary friction allows lateral sliding when turning -->
     <fdir1>1 0 0</fdir1>
   </gazebo>
   <gazebo reference="middle_left_wheel_link">
-    <mu1>0.5</mu1>
-    <mu2>0.05</mu2> <!-- Low secondary friction allows lateral sliding when turning -->
+    <mu1>$(arg wheel_mu1)</mu1>
+    <mu2>$(arg wheel_mu2)</mu2> <!-- Low secondary friction allows lateral sliding when turning -->
     <fdir1>1 0 0</fdir1>
   </gazebo>
   <gazebo reference="middle_right_wheel_link">
-    <mu1>0.5</mu1>
-    <mu2>0.05</mu2> <!-- Low secondary friction allows lateral sliding when turning -->
+    <mu1>$(arg wheel_mu1)</mu1>
+    <mu2>$(arg wheel_mu2)</mu2> <!-- Low secondary friction allows lateral sliding when turning -->
     <fdir1>1 0 0</fdir1>
   </gazebo>
   <gazebo reference="back_left_wheel_link">
-    <mu1>0.5</mu1>
-    <mu2>0.05</mu2> <!-- Low secondary friction allows lateral sliding when turning -->
+    <mu1>$(arg wheel_mu1)</mu1>
+    <mu2>$(arg wheel_mu2)</mu2> <!-- Low secondary friction allows lateral sliding when turning -->
     <fdir1>1 0 0</fdir1>
   </gazebo>
   <gazebo reference="back_right_wheel_link">
-    <mu1>0.5</mu1>
-    <mu2>0.05</mu2> <!-- Low secondary friction allows lateral sliding when turning -->
+    <mu1>$(arg wheel_mu1)</mu1>
+    <mu2>$(arg wheel_mu2)</mu2> <!-- Low secondary friction allows lateral sliding when turning -->
     <fdir1>1 0 0</fdir1>
   </gazebo>
 </robot>

@@ -2,16 +2,16 @@
 """
 Generates the terrain test world for terrain_aruco.launch.py:
   models/rover_terrain/        static ground mesh (OBJ) used for both visual and collision
-  worlds/terrain_world.sdf     terrain + rock garden + boulders + the same 3 ArUco markers
-
-The markers keep the x/y of aruco_world.sdf (goal_generator.py's SDF fallback poses are
-unchanged); only their z is lifted onto the terrain surface.
+  worlds/terrain_world.sdf     terrain + rock garden + boulders + 3 ArUco markers
+  config/terrain_markers.yaml  the markers' x/y/yaw for goal_generator's fallback goals
 
 Course, start at (0,0) facing +x:
-  start -> marker 0 (5,0)    gentle hill, ~14 deg max slope
-  marker 0 -> marker 1 (9,-1) rock garden, rocks up to ~11 cm tall
-  marker 1 -> marker 2 (15,2) steep hill, ~20 deg max slope
-  off the direct path         crater (~33 deg walls), steep mound (~46 deg), large boulders
+  start -> marker 0 (6.5,0)      small hill, ~14 deg
+  marker 0 -> marker 1 (15,-1)   trench (0.3 m deep, ~18 deg walls, crossable), then rock garden
+  marker 1 -> marker 2 (24,2)    big hill, 1 m tall, ~19 deg; hides marker 2 from marker 1 on
+                                 purpose, so the rover drives on the fallback coordinates and
+                                 picks the marker up near the top
+  off the direct path            crater (~33 deg walls), steep mound (~46 deg), boulders, a dune
 
 Re-run after changing anything below:
   python3 src/rover_description/scripts/generate_terrain_world.py
@@ -28,26 +28,32 @@ rng = np.random.default_rng(7)  # fixed seed so the world is reproducible
 # Terrain height field
 # ---------------------------------------------------------------------------
 
-X_MIN, X_MAX, Y_MIN, Y_MAX = -6.0, 26.0, -12.0, 12.0
+X_MIN, X_MAX, Y_MIN, Y_MAX = -6.0, 32.0, -12.0, 12.0
 RES = 0.2  # mesh grid spacing (m)
 
 # (cx, cy, height, spread): z += height * exp(-r^2 / spread)
 # max slope of such a bump = atan(|height| * sqrt(2/spread) * e^-0.5)
 BUMPS = [
-    (2.6, 0.0, 0.4, 2.0),     # gentle hill on the way to marker 0      (~14 deg)
-    (12.0, 0.5, 0.6, 2.0),    # steep hill between marker 1 and 2       (~20 deg). It hides
-                              # marker 2 from marker 1 on purpose: the rover has to drive on
-                              # goal_generator's fallback coordinates and pick the marker up
-                              # visually near the top.
-    (5.0, -6.0, -1.2, 2.5),   # crater, off path                        (~33 deg walls)
-    (13.0, -6.5, 1.5, 1.5),   # steep mound, off path                   (~46 deg)
-    (20.0, 7.0, 0.8, 8.0),    # broad dune, off path                    (~14 deg)
+    (3.0, 0.0, 0.4, 2.0),     # small hill on the way to marker 0       (~14 deg)
+    (19.5, 0.5, 1.0, 6.0),    # big hill between marker 1 and 2         (~19 deg)
+    (8.0, -7.0, -1.2, 2.5),   # crater, off path                        (~33 deg walls)
+    (18.0, -7.5, 1.5, 1.5),   # steep mound, off path                   (~46 deg)
+    (26.0, 7.5, 0.8, 8.0),    # broad dune, off path                    (~14 deg)
 ]
 
-MARKERS = [  # (model, name, x, y, yaw) -- same x/y/yaw as aruco_world.sdf
-    ('marker_0', 'target_marker_0', 5.0, 0.0, 0.0),
-    ('marker_1', 'target_marker_1', 9.0, -1.0, -0.95),
-    ('marker_2', 'marker2', 15.0, 2.0, 1.12),
+# Trenches: (x, y_start, y_end, depth, bottom_width, wall_slope_deg). A straight ditch
+# along y at x with rounded ends, flat bottom and straight walls. Walls are kept under
+# terrain_mapper's 20 deg no-go limit so the trench reads (and drives) as crossable.
+TRENCHES = [
+    (9.0, -3.0, 3.0, 0.3, 0.6, 18.0),  # across the leg from marker 0 to marker 1
+]
+
+ROCK_GARDEN = (11.0, 13.5, -1.6, 0.8)  # x_min, x_max, y_min, y_max
+
+MARKERS = [  # (model, name, x, y, yaw) -- yaws as in aruco_world.sdf
+    ('marker_0', 'target_marker_0', 6.5, 0.0, 0.0),
+    ('marker_1', 'target_marker_1', 15.0, -1.0, -0.95),
+    ('marker_2', 'marker2', 24.0, 2.0, 1.12),
 ]
 MARKER_HEIGHT = 0.25  # marker centre above ground, as in aruco_world.sdf
 CAMERA_HEIGHT = 0.78  # ZED above ground on rover_sim.urdf (chassis ~0.48 + mount 0.30)
@@ -55,6 +61,30 @@ CAMERA_HEIGHT = 0.78  # ZED above ground on rover_sim.urdf (chassis ~0.48 + moun
 # Garden rock size (m). Square-edged rocks taller than the wheel radius (0.12 m) stall the
 # wheels; a 0.14 m box wedged the rover in testing. Raise the upper bound to make it harder.
 ROCK_SIZE_RANGE = (0.05, 0.11)
+BOULDERS = [(4.0, 4.0, 1.2), (12.0, 4.5, 1.0), (17.0, -4.0, 1.4), (25.0, -4.0, 0.9)]  # x, y, diameter
+
+# Regions check_terrain_map.py reports on: (name, x, y, radius, what the cost should say)
+FEATURES = [
+    ('flat start pad', 0.0, 0.0, 1.0, 'cheap'),
+    ('small hill ~14 deg', 3.0, 0.0, 2.5, 'passable'),
+    ('trench', 9.0, 0.0, 1.2, 'passable (walls ~18 deg, under the 20 deg limit)'),
+    ('rock garden', 12.2, -0.4, 1.0, 'costlier than flat; rocks <= 11 cm, under the 12 cm limit'),
+    ('big hill ~19 deg', 19.5, 0.5, 3.5, 'passable, steepest ring near the limit'),
+    ('crater ~33 deg', 8.0, -7.0, 3.0, 'walls no-go'),
+    ('mound ~46 deg', 18.0, -7.5, 2.5, 'sides no-go'),
+    ('boulder (4, 4)', 4.0, 4.0, 0.7, 'no-go'),
+    ('boulder (12, 4.5)', 12.0, 4.5, 0.6, 'no-go'),
+]
+
+
+def trench_depth(x, y, tx, y0, y1, depth, bottom, wall_deg):
+    """How far the trench lowers the ground at (x, y): distance to the trench's centre
+    segment, flat bottom out to bottom/2, then a straight wall up to ground level."""
+    yc = np.clip(y, y0, y1)
+    r = np.hypot(x - tx, y - yc)
+    run = depth / math.tan(math.radians(wall_deg))
+    frac = np.clip((r - bottom / 2) / run, 0.0, 1.0)
+    return depth * (1.0 - frac)
 
 
 def height(x, y):
@@ -62,6 +92,8 @@ def height(x, y):
     z = z + 0.02 * np.sin(1.9 * x + 1.0) * np.sin(1.3 * y)
     for cx, cy, h, s in BUMPS:
         z = z + h * np.exp(-((x - cx) ** 2 + (y - cy) ** 2) / s)
+    for t in TRENCHES:
+        z = z - trench_depth(x, y, *t)
     return z
 
 
@@ -85,15 +117,16 @@ def max_slope_deg(h, s):
 
 def make_rocks():
     rocks = []
+    gx0, gx1, gy0, gy1 = ROCK_GARDEN
     while len(rocks) < 45:
-        x, y = rng.uniform(6.2, 8.2), rng.uniform(-1.8, 0.6)
+        x, y = rng.uniform(gx0, gx1), rng.uniform(gy0, gy1)
         if any(math.hypot(x - mx, y - my) < 0.8 for _, _, mx, my, _ in MARKERS):
             continue
         if any(math.hypot(x - r[0], y - r[1]) < 0.25 for r in rocks):
             continue
         shape = 'sphere' if rng.random() < 0.5 else 'box'
         rocks.append((x, y, shape, rng.uniform(*ROCK_SIZE_RANGE), rng.uniform(0, math.pi)))
-    for x, y, d in [(3.0, 4.0, 1.2), (8.0, 4.0, 1.0), (17.0, -3.0, 1.4), (18.5, 4.5, 0.9)]:
+    for x, y, d in BOULDERS:
         rocks.append((x, y, 'sphere', d, 0.0))
     return rocks
 
@@ -247,16 +280,33 @@ def write_world(path, rocks):
 """)
 
 
+def write_marker_config(path):
+    """goal_generator parameters: marker_poses as flat [id, x, y, yaw, ...], in marker order."""
+    flat = []
+    for i, (_, _, x, y, yaw) in enumerate(MARKERS):
+        flat += [float(i), x, y, yaw]
+    with open(path, 'w') as f:
+        f.write('# Generated by scripts/generate_terrain_world.py; edit the script, not this file.\n')
+        f.write('# Fallback goals for goal_generator: [id, x, y, yaw] per marker, flattened.\n')
+        f.write('goal_generator:\n  ros__parameters:\n')
+        f.write(f'    marker_poses: [{", ".join(f"{v:.2f}" for v in flat)}]\n')
+
+
 def main():
     n_v, n_f = write_terrain_model(os.path.join(PKG_DIR, 'models', 'rover_terrain'))
     rocks = make_rocks()
     write_world(os.path.join(PKG_DIR, 'worlds', 'terrain_world.sdf'), rocks)
+    write_marker_config(os.path.join(PKG_DIR, 'config', 'terrain_markers.yaml'))
 
     print(f'Terrain mesh: {n_v} vertices, {n_f} triangles, '
           f'x[{X_MIN},{X_MAX}] y[{Y_MIN},{Y_MAX}] @ {RES} m')
     for cx, cy, h, s in BUMPS:
         kind = 'crater' if h < 0 else 'hill'
         print(f'  {kind:6s} at ({cx:5.1f},{cy:5.1f}) h={h:+.2f} m  max slope {max_slope_deg(h, s):4.1f} deg')
+    for tx, y0, y1, d, b, w in TRENCHES:
+        width = b + 2 * d / math.tan(math.radians(w))
+        print(f'  trench at x={tx:.1f}, y[{y0},{y1}]: {d} m deep, {width:.1f} m wide at the top, '
+              f'{w:.0f} deg walls')
     print(f'Rocks: {len(rocks)} (garden + boulders)')
     for _, name, x, y, _ in MARKERS:
         print(f'  {name:16s} ({x}, {y}) ground z = {float(height(x, y)):+.3f}')

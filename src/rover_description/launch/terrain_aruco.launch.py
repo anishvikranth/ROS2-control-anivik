@@ -190,13 +190,13 @@ def generate_launch_description():
         ]
     )
 
-    # 8. Goal Generator Node (marker x/y are the same as aruco_world.sdf)
+    # 8. Goal Generator Node (fallback marker positions written by the world generator)
     goal_generator_node = Node(
         package='rover_aruco',
         executable='goal_generator',
         name='goal_generator',
         output='screen',
-        parameters=[sim_time_param]
+        parameters=[sim_time_param, os.path.join(pkg_rover_description, 'config', 'terrain_markers.yaml')]
     )
 
     # 9. Marker Tracker Node
@@ -228,6 +228,15 @@ def generate_launch_description():
         ]
     )
 
+    # 11. Terrain mapper: depth cloud -> height map -> /traversability/costmap
+    terrain_mapper_node = Node(
+        package='rover_traversability',
+        executable='terrain_mapper',
+        name='terrain_mapper',
+        output='screen',
+        parameters=[sim_time_param]
+    )
+
     return LaunchDescription([
         set_gz_resource_path,
         gz_sim,
@@ -239,5 +248,6 @@ def generate_launch_description():
         aruco_detector_node,
         goal_generator_node,
         marker_tracker_node,
-        obs_avoid_node
+        obs_avoid_node,
+        terrain_mapper_node
     ])

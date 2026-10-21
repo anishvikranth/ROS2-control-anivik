@@ -1,6 +1,10 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="jade">
 
+  <!-- The arm brings its own ZED on the stand, so rover_raw's placeholder chassis ZED is
+       turned off (two zed_camera_link links make the URDF invalid). -->
+  <xacro:arg name="chassis_zed" default="false" />
+
   <!-- 1. Global properties & color macros MUST come first -->
   <xacro:include filename="$(find jade_description)/urdf/common_properties.xacro" />
 

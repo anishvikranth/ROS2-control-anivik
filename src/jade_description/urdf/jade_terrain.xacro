@@ -1,0 +1,106 @@
+<?xml version="1.0"?>
+<!--
+  jade for the terrain navigation sim (jade_terrain.launch.py): jade.xacro unchanged, plus
+  sim-only settings and sensors. Expand with:
+    xacro $(ros2 pkg prefix jade_description)/share/jade_description/urdf/jade_terrain.xacro
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="jade">
+
+  <!-- Declared before jade.xacro is included, so these win over the defaults declared in
+       rover_raw.xacro / common_properties.xacro (the first xacro:arg declaration wins). -->
+
+  <!-- Lock the rockers: DART ignores the rocker differential (<mimic>), and free rockers
+       let the chassis pitch ~45 deg about the pivots while driving, aiming the ZED at the sky. -->
+  <xacro:arg name="rocker_friction" default="1000.0" />
+
+  <!-- Wheel friction as on rover_sim, which was tested on the terrain course. jade's default
+       sideways 0.05 lets the rover slide down any slope steeper than ~3 deg. -->
+  <xacro:arg name="wheel_mu1" default="1.0" />
+  <xacro:arg name="wheel_mu2" default="1.0" />
+
+  <!-- DiffDrive's wheel odometry moves to /odom_wheel and /tf_wheel; OdometryPublisher
+       below owns /odom. -->
+  <xacro:arg name="diff_drive_odom_topic" default="odom_wheel" />
+  <xacro:arg name="diff_drive_tf_topic" default="tf_wheel" />
+
+  <xacro:include filename="$(find jade_description)/urdf/jade.xacro" />
+
+  <!-- Rendering sensors need the Sensors system; the terrain world doesn't load it. -->
+  <gazebo>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+  </gazebo>
+
+  <!-- /odom and odom -> chassis_footprint from the true 3D pose, standing in for the ZED's
+       visual-inertial tracking. DiffDrive's wheel odometry (moved to /odom_wheel above)
+       assumes no slip, and on skid-steer drifted ~80 deg per in-place turn. -->
+  <gazebo>
+    <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
+      <odom_frame>odom</odom_frame>
+      <robot_base_frame>chassis_footprint</robot_base_frame>
+      <odom_topic>odom</odom_topic>
+      <tf_topic>tf</tf_topic>
+      <odom_publish_frequency>30</odom_publish_frequency>
+      <dimensions>3</dimensions>
+    </plugin>
+  </gazebo>
+
+  <!-- ZED sensors used by the navigation stack, same topics as rover_sim.urdf.
+       jade's own rgbd sensor (/zed/zed_node/...) stamps images in zed_camera_link (x forward),
+       but aruco_detector reuses the image frame as the optical frame, so the RGB camera here
+       is stamped zed_camera_optical_frame (published by the launch file). gz depth-camera
+       point clouds are in the link convention, so those stay in zed_camera_link. -->
+  <gazebo reference="zed_camera_link">
+    <sensor name="zed_nav_rgb" type="camera">
+      <always_on>true</always_on>
+      <update_rate>15</update_rate>
+      <visualize>false</visualize>
+      <topic>/zed/image_raw</topic>
+      <gz_frame_id>zed_camera_optical_frame</gz_frame_id>
+      <camera>
+        <horizontal_fov>1.919862</horizontal_fov>
+        <image>
+          <width>1280</width>
+          <height>720</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.2</near>
+          <far>20</far>
+        </clip>
+      </camera>
+    </sensor>
+    <sensor name="zed_nav_depth" type="depth_camera">
+      <always_on>true</always_on>
+      <update_rate>10</update_rate>
+      <visualize>false</visualize>
+      <topic>/zed/depth</topic>
+      <gz_frame_id>zed_camera_link</gz_frame_id>
+      <camera>
+        <horizontal_fov>1.919862</horizontal_fov>
+        <image>
+          <width>640</width>
+          <height>360</height>
+          <format>R_FLOAT32</format>
+        </image>
+        <clip>
+          <near>0.3</near>
+          <far>15</far>
+        </clip>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.01</stddev>
+        </noise>
+      </camera>
+    </sensor>
+    <sensor name="zed_nav_imu" type="imu">
+      <always_on>true</always_on>
+      <update_rate>100</update_rate>
+      <topic>/zed/imu/data</topic>
+      <gz_frame_id>zed_camera_link</gz_frame_id>
+    </sensor>
+  </gazebo>
+
+</robot>

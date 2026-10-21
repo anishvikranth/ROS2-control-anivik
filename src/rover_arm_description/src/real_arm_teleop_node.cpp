@@ -1,8 +1,21 @@
 #include <rclcpp/rclcpp.hpp>
 #include <Eigen/Dense>
+// MoveIt on Jazzy ships .hpp headers, on Humble (the Orin) .h
+#if __has_include(<moveit/robot_model/robot_model.hpp>)
 #include <moveit/robot_model/robot_model.hpp>
+#else
+#include <moveit/robot_model/robot_model.h>  // Humble's MoveIt
+#endif
+#if __has_include(<moveit/robot_model/revolute_joint_model.hpp>)
 #include <moveit/robot_model/revolute_joint_model.hpp>
+#else
+#include <moveit/robot_model/revolute_joint_model.h>  // Humble's MoveIt
+#endif
+#if __has_include(<moveit/robot_state/robot_state.hpp>)
 #include <moveit/robot_state/robot_state.hpp>
+#else
+#include <moveit/robot_state/robot_state.h>  // Humble's MoveIt
+#endif
 #include <srdfdom/model.h>
 #include <urdf/model.h>
 #include <controller_manager_msgs/srv/switch_controller.hpp>
@@ -19,6 +32,28 @@
 #include <unordered_map>
 #include <vector>
 #include <string>
+#include <type_traits>
+#include <utility>
+
+namespace
+{
+// SwitchController's response has a `message` field on Jazzy but not on Humble (the Orin,
+// JetPack 6). Report it when it exists so the same source builds on both.
+template<typename T, typename = void>
+struct has_message : std::false_type {};
+template<typename T>
+struct has_message<T, std::void_t<decltype(std::declval<T>().message)>> : std::true_type {};
+
+template<typename Response>
+std::string switch_error_text(const Response & response)
+{
+  if constexpr (has_message<Response>::value) {
+    return response.message;
+  } else {
+    return "no details (this ROS version's SwitchController has no message field)";
+  }
+}
+}  // namespace
 
 // Real-hardware teleop node, replacing both sim_control_node.cpp (for real
 // hardware use) and arm_control_node_v2.py entirely.
@@ -390,7 +425,7 @@ void RealArmTeleopNode::request_joystick_only(bool enable) {
             switch_pending_ = false;
             const auto response = future.get();
             if (!response->ok) {
-                RCLCPP_ERROR(this->get_logger(), "Controller switch failed: %s", response->message.c_str());
+                RCLCPP_ERROR(this->get_logger(), "Controller switch failed: %s", switch_error_text(*response).c_str());
                 return;
             }
             joystick_only_ = enable;

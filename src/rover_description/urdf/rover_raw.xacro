@@ -6,6 +6,15 @@
   Date: 2026-08-08 12:18:26
 -->
 <robot xmlns:xacro="http://ros.org/xacro" name="rover_test_version">
+  <!-- Settings that a including file can change by declaring the same xacro:arg before its
+       include (the first declaration wins), or on the xacro command line:
+         rocker_friction  joint friction on both rockers (N·m). 0 = free, as on the real rover.
+                          The terrain sim locks them with 1000: Gazebo's DART engine ignores
+                          the rocker differential, so free rockers let the chassis pitch ~45 deg.
+         chassis_zed      the placeholder ZED on the chassis. Off when the arm (with its own
+                          ZED on the stand) is mounted, e.g. jade.xacro. -->
+  <xacro:arg name="rocker_friction" default="0.0" />
+  <xacro:arg name="chassis_zed" default="true" />
   <!-- Links -->
   <link name="back_left_wheel_link">
     <inertial>
@@ -222,6 +231,7 @@
       </geometry>
     </collision>
   </link>
+  <xacro:if value="$(arg chassis_zed)">
   <link name="zed_camera_link">
     <!-- Geometry copied from rover_arm_raw.xacro's zed_camera_link (the
          LinkForge-generated, verified source — NOT the reconstructed copy
@@ -245,6 +255,7 @@
       </geometry>
     </collision>
   </link>
+  </xacro:if>
   <!-- Joints -->
   <joint name="back_left_wheel_link_joint" type="continuous">
     <origin xyz="-0.550766 0.0235 -0.305642" rpy="0 0 0" />
@@ -284,7 +295,7 @@
     <parent link="left_rocker_link" />
     <child link="left_bogie_link" />
     <axis xyz="0 1 0" />
-    <limit effort="10" velocity="1" lower="-3.141593" upper="3.141593" />
+    <limit effort="10" velocity="1" lower="-0.5236" upper="0.5236" />
   </joint>
   <joint name="left_rocker_link_joint" type="revolute">
     <origin xyz="-0.017593 0.313117 0.118479" rpy="0 0 0" />
@@ -292,6 +303,7 @@
     <child link="left_rocker_link" />
     <axis xyz="0 1 0" />
     <limit effort="10" velocity="1" lower="-1.570795" upper="1.570795" />
+    <dynamics friction="$(arg rocker_friction)" />
   </joint>
   <joint name="middle_left_wheel_link_joint" type="continuous">
     <origin xyz="-0.236289 0.0235 -0.201885" rpy="0.000001 -0.000001 -0.000001" />
@@ -312,7 +324,7 @@
     <parent link="right_rocker_link" />
     <child link="right_bogie_link" />
     <axis xyz="0 1 0" />
-    <limit effort="10" velocity="1" lower="-3.141593" upper="3.141593" />
+    <limit effort="10" velocity="1" lower="-0.5236" upper="0.5236" />
   </joint>
   <joint name="right_rocker_link_joint" type="revolute">
     <origin xyz="-0.018794 -0.317419 0.125316" rpy="0 0 0" />
@@ -320,7 +332,9 @@
     <child link="right_rocker_link" />
     <axis xyz="0 1 0" />
     <limit effort="10" velocity="1" lower="-3.141593" upper="3.141593" />
+    <dynamics friction="$(arg rocker_friction)" />
   </joint>
+  <xacro:if value="$(arg chassis_zed)">
   <joint name="zed_camera_link_joint" type="fixed">
     <!-- TODO: PLACEHOLDER. chassis_link and the arm's stand_link have no
          defined transform between them yet, so this is a guess: front-center,
@@ -336,4 +350,5 @@
     <parent link="chassis_link" />
     <child link="zed_camera_link" />
   </joint>
+  </xacro:if>
 </robot>

@@ -80,7 +80,8 @@ First time on real hardware? Follow the [First power-on checklist](#first-power-
 | `src/rover_arm_hardware` | `ros2_control` SystemInterface plugin for the real arm (`RoverArmHardware`) |
 | `src/rover_arm_moveit_config` | MoveIt config: SRDF (groups, **named poses**), kinematics, joint limits, RViz config |
 | `src/rover_description` | Full rover (rocker-bogie) description, Gazebo worlds with ArUco markers (flat and terrain), terrain generator (`scripts/generate_terrain_world.py`) |
-| `src/jade_description` | **jade**: the rover with the arm mounted (stand on the chassis at 0.323, 0, 0.22 m), diff drive, Gazebo arm control. Source of `config/rover_body.yaml` |
+| `src/rover_traversability` | `terrain_mapper`: ZED depth cloud → rover-centred height map → slope/step/roughness → `/traversability/costmap`; `scripts/check_terrain_map.py` checks a map against the generated terrain |
+| `src/jade_description` | **jade**: the rover with the arm mounted (stand on the chassis at 0.323, 0, 0.22 m), diff drive, Gazebo arm control. Source of `config/rover_body.yaml`. `jade_terrain.xacro` / `jade_terrain.launch.py`: jade on the terrain course |
 | `src/rover_aruco`, `src/rover_aruco_interfaces` | ArUco detection, marker tracking and navigation-goal generation |
 | `avatar_files/` | Copies of the AVATAR files used with the real arm: `arm.c` (ESP32 firmware with encoders) and `arm.py` (Orin-side serial bridge). See [AVATAR files](#avatar-files). |
 
@@ -95,6 +96,18 @@ colcon build
 source install/setup.bash
 ```
 
+**ROS 2 Humble (the Orin on JetPack 6, Ubuntu 22.04).** The robot-side packages also build on
+Humble: `rover_arm_hardware`, `rover_arm_description` and `rover_arm_moveit_config` switch at
+compile time between the Jazzy and Humble APIs (`ros2_control`'s `on_init`, MoveIt's `.hpp`/`.h`
+headers, `SwitchController`'s response). Tested in a `ros:humble` container together with
+`rover_aruco`, `rover_aruco_interfaces` and `rover_traversability`; not yet on the Orin itself.
+Skip the Gazebo packages there:
+
+```bash
+source /opt/ros/humble/setup.bash
+colcon build --packages-skip rover_description jade_description
+```
+
 ## Simulation
 
 | Command | What it starts |
@@ -107,7 +120,8 @@ source install/setup.bash
 | `ros2 launch rover_arm_moveit_config demo.launch.py` | MoveIt with mock hardware (no Gazebo) |
 | `ros2 launch rover_description gz.launch.py` | Full rover in Gazebo |
 | `ros2 launch rover_description aruco.launch.py` | Rover drives itself to 3 ArUco markers on flat ground |
-| `ros2 launch rover_description terrain_aruco.launch.py` | The same 3-marker run over hills, a rock garden and a crater -- see [Terrain navigation sim](#terrain-navigation-sim) |
+| `ros2 launch rover_description terrain_aruco.launch.py` | The same 3-marker run over a small hill, a trench, a rock garden and a big hill -- see [Terrain navigation sim](#terrain-navigation-sim) |
+| `ros2 launch jade_description jade_terrain.launch.py` | The terrain run with **jade** (rover + arm, arm stowed) instead of `rover_sim` |
 
 `gazebo.launch.py` / `arm.launch.py` drive the simulated arm through **position** interfaces
 (a quick sim). `arm_real_sim.launch.py` runs the exact real-arm stack instead. Both use
@@ -158,56 +172,95 @@ ros2 param set /virtual_esp enc_dir "[-1.0, 1.0, 1.0, 1.0, 1.0, 1.0]"           
 ### Terrain navigation sim
 
 `terrain_aruco.launch.py` runs the ArUco marker mission (`rover_aruco`: detector, tracker,
-goal generator, `movement.py`) on uneven ground instead of a flat plane.
+goal generator, `movement.py`) on uneven ground, with `terrain_mapper` building a cost map
+from the ZED depth cloud. `jade_terrain.launch.py` runs the same with jade.
 
-The course (start at the origin facing +x; markers at the same x/y as the flat world):
+The course (start at the origin facing +x):
 
 | Leg | Terrain |
 |---|---|
-| start → marker 0 (5, 0) | gentle hill, ~14° |
-| marker 0 → marker 1 (9, −1) | rock garden, rocks up to ~11 cm |
-| marker 1 → marker 2 (15, 2) | 20° hill that hides marker 2: the rover drives on `goal_generator`'s fallback coordinates and picks the marker up near the top |
-| off the direct path | crater (~33° walls), steep mound (~46°), large boulders, a dune |
+| start → marker 0 (6.5, 0) | small hill, 0.4 m, ~14° |
+| marker 0 → marker 1 (15, −1) | trench at x = 9 (0.3 m deep, 2.4 m wide, 18° walls, crossable), then a rock garden (rocks up to ~11 cm) |
+| marker 1 → marker 2 (24, 2) | big hill, 1 m, ~19°. It hides marker 2: the rover drives on `goal_generator`'s fallback coordinates and picks the marker up near the top |
+| off the direct path | crater (~33° walls), steep mound (~46°), boulders, a dune |
 
 The world is generated. Edit and rerun the script, not the `.sdf`:
 
 ```bash
-python3 src/rover_description/scripts/generate_terrain_world.py   # writes worlds/terrain_world.sdf + models/rover_terrain/
+python3 src/rover_description/scripts/generate_terrain_world.py
+# writes worlds/terrain_world.sdf, models/rover_terrain/, config/terrain_markers.yaml
 ```
 
 It prints each feature's maximum slope and a line-of-sight check per leg (whether the ZED can
-see the next marker over the terrain).
+see the next marker over the terrain). `config/terrain_markers.yaml` gives `goal_generator`
+the markers' fallback positions (parameter `marker_poses`; its default is the flat world's).
 
-What the terrain launch adds on top of `aruco.launch.py`, at launch time (`rover_sim.urdf` is unchanged):
+What the terrain launches add (`rover_sim.urdf` and `jade.xacro` are unchanged):
 
 - **Ground-truth odometry.** `/odom` and `odom → chassis_footprint` come from Gazebo's
   `OdometryPublisher` (full 3D pose), standing in for the ZED's visual-inertial tracking on the
   real rover. DiffDrive's wheel odometry is moved to `/odom_wheel`: on skid-steer it assumes no
   slip and was ~80° off after one in-place turn, which sent the fallback goals metres wide.
 - **ZED depth point cloud** on `/zed/depth/points` (640×360, 10 Hz, 0.3–15 m, frame
-  `zed_camera_link` with x forward) for traversability mapping.
+  `zed_camera_link` with x forward) and **`terrain_mapper`**.
 - **Speed caps** for `movement.py`: 0.8 m/s, 1 rad/s. At its flat-ground defaults
   (2.4 m/s, 6 rad/s) the rover rolled over in the rock garden.
 
-`movement.py` behaviour added for rough ground (all ROS parameters):
+#### terrain_mapper (`rover_traversability`)
+
+Each depth cloud goes into the `odom` frame, points inside the rover's own box are dropped
+(on jade the ZED sees the front wheels and the stowed arm), and the rest are fused into a
+20 m height grid of 0.15 m cells centred on the rover. Twice a second a plane is fitted around
+every cell:
+
+| Layer | Meaning |
+|---|---|
+| slope | angle of the local plane |
+| step | highest minus lowest height *relative to the plane* in a 0.75 m window, so a smooth slope doesn't read as a step |
+| rough | RMS distance from the plane |
+
+Cost is 1–99, rising with whichever limit is closer; 100 (no-go) above `max_slope_deg` (20)
+or `max_step_m` (0.12, the wheel radius); −1 unseen. Published as `/traversability/costmap`
+(`OccupancyGrid`) and `/traversability/cells` (`PointCloud2` with slope/step/rough/cost fields;
+RViz can colour by any of them). Set `dump_path:=/tmp/map.npz` to save the layers, then
+`python3 src/rover_traversability/scripts/check_terrain_map.py /tmp/map.npz` compares them
+with the generator's exact terrain. On `rover_sim` the map matched to < 1 cm height and ~1°
+slope (95th percentile).
+
+#### movement.py on rough ground
+
+All ROS parameters:
 
 | Behaviour | Parameters (default) |
 |---|---|
 | Turns in place when the heading error is large instead of arcing (a forward arc stops one side's wheels and the other side can't drag the rover round) | `turn_in_place_threshold` (0.5 rad) to start, `turn_in_place_exit` (0.3 rad) to stop, `min_turn_speed` (0.3 rad/s) |
+| While driving, caps the turn rate so the inner wheels keep part of the forward speed (no pivoting) | `track_width` (0.63 m), `min_inner_wheel_ratio` (0.3) |
 | Backs up when motion is commanded but the rover hasn't moved or turned | `stall_timeout_sec` (3), `stall_min_dist` (0.05 m), `stall_min_yaw` (0.05 rad), `backup_duration_sec` (1.5), `backup_speed` (0.3 m/s) |
-| Stops in `ABORTED` after repeated back-ups with no progress; a new target ID clears it | `max_recoveries` (3) |
+| Stops in `ABORTED` after repeated back-ups without getting `recovery_reset_dist` past the first stall; a new target ID clears it | `max_recoveries` (3), `recovery_reset_dist` (0.5 m) |
 
-Rover model settings in `rover_sim.urdf` / `.xacro` that the terrain run depends on:
+#### Rover model settings
 
-- **Rocker friction 1000 (rockers effectively locked).** There is no differential between the
-  rockers, and DART ignores `<mimic>`, so with friction 10 the chassis pitched up to ~45° about
-  the rocker pivots while driving and the ZED pointed at the sky.
-- **Bogie limits ±30°** (were ±180°): on a hillside a bogie folded right over and wedged the
-  rover. Set these to the real hardware's bogie travel when known.
+In `rover_sim.urdf` / `.xacro`, and for jade through settings in `rover_raw.xacro` /
+`common_properties.xacro` that `jade_terrain.xacro` sets (the first `xacro:arg` declaration
+wins, so plain `jade.xacro` keeps its defaults):
 
-Tested: a GUI run reached all 3 markers in 69 s (one stall in the rock garden, freed by one
-back-up; max roll 18° on the hill). `movement.py` still drives straight at each goal, so the leg to
-marker 2 crosses the 20° hill's side slope; a traversability planner should route over it head-on.
+| Setting | Terrain value | Default | Why |
+|---|---|---|---|
+| `rocker_friction` | 1000 (rockers locked) | 0 | No rocker differential and DART ignores `<mimic>`: free rockers let the chassis pitch ~45° and the ZED point at the sky |
+| bogie limits | ±30° | (now ±30° everywhere) | At ±180° a bogie folded right over on a hillside. Set to the real hardware's travel when known |
+| `wheel_mu1` / `wheel_mu2` | 1.0 / 1.0 | 0.5 / 0.05 | Sideways 0.05 lets the rover slide down any slope over ~3° |
+| `diff_drive_odom_topic` / `diff_drive_tf_topic` | `odom_wheel` / `tf_wheel` | `odom` / `tf` | Ground-truth odometry owns `/odom` |
+| `chassis_zed` (`rover_raw.xacro`) | — | `true`; `false` in `jade.xacro` | The placeholder chassis ZED plus the arm's ZED gave two `zed_camera_link`s and an invalid URDF |
+
+`jade_terrain.launch.py` also spawns the arm controllers, moves the arm to the SRDF's `stow`
+pose and only then starts navigation: until `arm_controller` is up the arm hangs limp from
+its spawn pose and propped the rover so it couldn't drive.
+
+Tested headless: `rover_sim` and jade each reached all 3 markers with no stalls (jade in 54 s
+of driving; max roll ~20° on the big hill). `movement.py` still drives straight at each goal,
+so the leg to marker 2 crosses the big hill's side slope; the next step is a path planner
+(A* on `/traversability/costmap`, no Nav2) that routes over it head-on. On jade the mapper
+is slow (~1 s per update, so fewer clouds fused); see Known issues.
 
 ## Real arm
 
@@ -535,13 +588,16 @@ ones used in the Arduino IDE.
 
 - `gazebo.launch.py` / `arm.launch.py` (quick position-control sim) were updated for the v2
   arm but not re-tested (they always open Gazebo/RViz windows); `arm_real_sim.launch.py` is tested.
-- The full-rover sim (`jade_description`) needs upstream's wheel names in `rover_description/urdf/rover_raw.xacro`.
-  The front-right wheel rename and the wheel joint limits (12 N·m, 15 rad/s) are now merged; `jade` itself
-  hasn't been re-tested.
+- The full-rover sim (`jade_description`) uses upstream's wheel names in `rover_description/urdf/rover_raw.xacro`
+  (front-right wheel rename and the wheel joint limits, 12 N·m / 15 rad/s, merged).
+  `jade_terrain.launch.py` is tested headless; plain `gz.launch.py` hasn't been re-run.
 - Upstream `gazebo_dev` sets rocker friction 1000 in `rover_sim.xacro` only and doesn't regenerate
   `rover_sim.urdf`, which the launch files load. Both are 1000 here.
 - In the terrain sim, turning in place among rocks is marginal: one stall per run is normal and
   the back-up usually frees it.
+- On jade, `terrain_mapper`'s layer update took ~1.1 s (vs tens of ms on `rover_sim`), so only a
+  fraction of the depth clouds get fused. Likely CPU contention in the heavier sim (four
+  rendered cameras, a 1 kHz controller manager); not yet profiled.
 - KDL IK often fails for pose goals on this 5-DOF arm; consider `pick_ik` or position-only IK.
 - `move_group` logs errors about `DepthImageOctomapUpdater`: `moveit_ros_perception` isn't installed. Harmless until depth-camera obstacle avoidance is needed; then install it or drop `sensors_3d.yaml`.
 - While a motor is faulted, holding the joystick makes `arm_controller` log "Holding position due to state tolerance violation" for every new target (safe, just noisy).

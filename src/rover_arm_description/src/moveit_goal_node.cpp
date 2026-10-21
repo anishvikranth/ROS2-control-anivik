@@ -4,8 +4,17 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+// MoveIt on Jazzy ships .hpp headers, on Humble (the Orin) .h
+#if __has_include(<moveit/move_group_interface/move_group_interface.hpp>)
 #include <moveit/move_group_interface/move_group_interface.hpp>
+#else
+#include <moveit/move_group_interface/move_group_interface.h>  // Humble's MoveIt
+#endif
+#if __has_include(<moveit/robot_state/robot_state.hpp>)
 #include <moveit/robot_state/robot_state.hpp>
+#else
+#include <moveit/robot_state/robot_state.h>  // Humble's MoveIt
+#endif
 
 void PrintRobotInfo(const rclcpp::Node::SharedPtr& node, moveit::planning_interface::MoveGroupInterface& move_group){
     //Print the planning frame
