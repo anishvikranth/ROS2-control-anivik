@@ -90,7 +90,7 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        left_back_wheel_link:
+        front_right_wheel_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -192,7 +192,7 @@ Visualization Manager:
           Value: true
         elbow_link_new:
           Value: true
-        left_back_wheel_link:
+        front_right_wheel_link:
           Value: true
         left_bogie_link:
           Value: true
@@ -233,7 +233,7 @@ Visualization Manager:
         chassis_footprint:
           chassis_link:
             left_rocker_link:
-              left_back_wheel_link:
+              front_right_wheel_link:
                 {}
               left_bogie_link:
                 left_front_wheel_link:

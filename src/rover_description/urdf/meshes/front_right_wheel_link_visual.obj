@@ -1,6 +1,6 @@
 # Blender 4.5.12 LTS
 # www.blender.org
-mtllib left_back_wheel_link_visual.mtl
+mtllib front_right_wheel_link_visual.mtl
 o left_back_wheel_link_visual.001
 v 0.009775 -0.050124 -0.055771
 v -0.007360 -0.050756 -0.055774

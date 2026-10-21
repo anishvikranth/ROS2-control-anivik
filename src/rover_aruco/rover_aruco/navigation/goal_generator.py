@@ -203,11 +203,13 @@ class GoalGenerator(Node):
         self._publish_goal(goal_msg, marker_id)
 
     def _publish_goal(self, goal_pose: PoseStamped, marker_id: int) -> None:
-        self.goal_pub.publish(goal_pose)
-
+        # ID before goal: movement.py tags each goal with the last ID it received, so
+        # publishing the goal first made it report the previous marker as reached.
         id_msg = Int32()
         id_msg.data = marker_id
         self.target_id_pub.publish(id_msg)
+
+        self.goal_pub.publish(goal_pose)
 
         self.current_target_id = marker_id
 

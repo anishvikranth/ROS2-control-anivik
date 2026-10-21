@@ -54,7 +54,7 @@ First time on real hardware? Follow the [First power-on checklist](#first-power-
 ## Contents
 
 - [Repository layout](#repository-layout) · [Build](#build) · [Simulation](#simulation) ·
-  [Real-arm stack in simulation](#real-arm-stack-in-simulation)
+  [Real-arm stack in simulation](#real-arm-stack-in-simulation) · [Terrain navigation sim](#terrain-navigation-sim)
 - Real arm: [Bring-up](#bring-up) · [Control modes](#control-modes) ·
   [Joystick mapping](#joystick-mapping-joy_arm) · [Task-space jogging](#task-space-jogging-button-b) ·
   [Named poses and the gripper](#named-poses-and-the-gripper) · [Safety behaviour](#safety-behaviour) ·
@@ -79,7 +79,7 @@ First time on real hardware? Follow the [First power-on checklist](#first-power-
 | `  config/ros2_controllers_real.yaml` | Real-arm controllers, gains, tolerances |
 | `src/rover_arm_hardware` | `ros2_control` SystemInterface plugin for the real arm (`RoverArmHardware`) |
 | `src/rover_arm_moveit_config` | MoveIt config: SRDF (groups, **named poses**), kinematics, joint limits, RViz config |
-| `src/rover_description` | Full rover (rocker-bogie) description and Gazebo world with ArUco markers |
+| `src/rover_description` | Full rover (rocker-bogie) description, Gazebo worlds with ArUco markers (flat and terrain), terrain generator (`scripts/generate_terrain_world.py`) |
 | `src/jade_description` | **jade**: the rover with the arm mounted (stand on the chassis at 0.323, 0, 0.22 m), diff drive, Gazebo arm control. Source of `config/rover_body.yaml` |
 | `src/rover_aruco`, `src/rover_aruco_interfaces` | ArUco detection, marker tracking and navigation-goal generation |
 | `avatar_files/` | Copies of the AVATAR files used with the real arm: `arm.c` (ESP32 firmware with encoders) and `arm.py` (Orin-side serial bridge). See [AVATAR files](#avatar-files). |
@@ -106,6 +106,8 @@ source install/setup.bash
 | `ros2 launch rover_arm_description rviz.launch.py model:=rover_arm_sim.xacro` | RViz + joint sliders to check a URDF (`model` is any xacro in `urdf/`) |
 | `ros2 launch rover_arm_moveit_config demo.launch.py` | MoveIt with mock hardware (no Gazebo) |
 | `ros2 launch rover_description gz.launch.py` | Full rover in Gazebo |
+| `ros2 launch rover_description aruco.launch.py` | Rover drives itself to 3 ArUco markers on flat ground |
+| `ros2 launch rover_description terrain_aruco.launch.py` | The same 3-marker run over hills, a rock garden and a crater -- see [Terrain navigation sim](#terrain-navigation-sim) |
 
 `gazebo.launch.py` / `arm.launch.py` drive the simulated arm through **position** interfaces
 (a quick sim). `arm_real_sim.launch.py` runs the exact real-arm stack instead. Both use
@@ -152,6 +154,60 @@ ros2 topic pub --once /virtual_esp/reboot std_msgs/msg/Empty                    
 ros2 topic pub --once /virtual_esp/freeze_encoder std_msgs/msg/Int32 "{data: 0}"      # motor index, -1 = none
 ros2 param set /virtual_esp enc_dir "[-1.0, 1.0, 1.0, 1.0, 1.0, 1.0]"                 # reversed encoder
 ```
+
+### Terrain navigation sim
+
+`terrain_aruco.launch.py` runs the ArUco marker mission (`rover_aruco`: detector, tracker,
+goal generator, `movement.py`) on uneven ground instead of a flat plane.
+
+The course (start at the origin facing +x; markers at the same x/y as the flat world):
+
+| Leg | Terrain |
+|---|---|
+| start → marker 0 (5, 0) | gentle hill, ~14° |
+| marker 0 → marker 1 (9, −1) | rock garden, rocks up to ~11 cm |
+| marker 1 → marker 2 (15, 2) | 20° hill that hides marker 2: the rover drives on `goal_generator`'s fallback coordinates and picks the marker up near the top |
+| off the direct path | crater (~33° walls), steep mound (~46°), large boulders, a dune |
+
+The world is generated. Edit and rerun the script, not the `.sdf`:
+
+```bash
+python3 src/rover_description/scripts/generate_terrain_world.py   # writes worlds/terrain_world.sdf + models/rover_terrain/
+```
+
+It prints each feature's maximum slope and a line-of-sight check per leg (whether the ZED can
+see the next marker over the terrain).
+
+What the terrain launch adds on top of `aruco.launch.py`, at launch time (`rover_sim.urdf` is unchanged):
+
+- **Ground-truth odometry.** `/odom` and `odom → chassis_footprint` come from Gazebo's
+  `OdometryPublisher` (full 3D pose), standing in for the ZED's visual-inertial tracking on the
+  real rover. DiffDrive's wheel odometry is moved to `/odom_wheel`: on skid-steer it assumes no
+  slip and was ~80° off after one in-place turn, which sent the fallback goals metres wide.
+- **ZED depth point cloud** on `/zed/depth/points` (640×360, 10 Hz, 0.3–15 m, frame
+  `zed_camera_link` with x forward) for traversability mapping.
+- **Speed caps** for `movement.py`: 0.8 m/s, 1 rad/s. At its flat-ground defaults
+  (2.4 m/s, 6 rad/s) the rover rolled over in the rock garden.
+
+`movement.py` behaviour added for rough ground (all ROS parameters):
+
+| Behaviour | Parameters (default) |
+|---|---|
+| Turns in place when the heading error is large instead of arcing (a forward arc stops one side's wheels and the other side can't drag the rover round) | `turn_in_place_threshold` (0.5 rad) to start, `turn_in_place_exit` (0.3 rad) to stop, `min_turn_speed` (0.3 rad/s) |
+| Backs up when motion is commanded but the rover hasn't moved or turned | `stall_timeout_sec` (3), `stall_min_dist` (0.05 m), `stall_min_yaw` (0.05 rad), `backup_duration_sec` (1.5), `backup_speed` (0.3 m/s) |
+| Stops in `ABORTED` after repeated back-ups with no progress; a new target ID clears it | `max_recoveries` (3) |
+
+Rover model settings in `rover_sim.urdf` / `.xacro` that the terrain run depends on:
+
+- **Rocker friction 1000 (rockers effectively locked).** There is no differential between the
+  rockers, and DART ignores `<mimic>`, so with friction 10 the chassis pitched up to ~45° about
+  the rocker pivots while driving and the ZED pointed at the sky.
+- **Bogie limits ±30°** (were ±180°): on a hillside a bogie folded right over and wedged the
+  rover. Set these to the real hardware's bogie travel when known.
+
+Tested: a GUI run reached all 3 markers in 69 s (one stall in the rock garden, freed by one
+back-up; max roll 18° on the hill). `movement.py` still drives straight at each goal, so the leg to
+marker 2 crosses the 20° hill's side slope; a traversability planner should route over it head-on.
 
 ## Real arm
 
@@ -479,8 +535,13 @@ ones used in the Arduino IDE.
 
 - `gazebo.launch.py` / `arm.launch.py` (quick position-control sim) were updated for the v2
   arm but not re-tested (they always open Gazebo/RViz windows); `arm_real_sim.launch.py` is tested.
-- The full-rover sim (`jade_description`) needs the current upstream `rover_description/urdf/rover_raw.xacro`
-  (wheel joint names its diff drive uses).
+- The full-rover sim (`jade_description`) needs upstream's wheel names in `rover_description/urdf/rover_raw.xacro`.
+  The front-right wheel rename and the wheel joint limits (12 N·m, 15 rad/s) are now merged; `jade` itself
+  hasn't been re-tested.
+- Upstream `gazebo_dev` sets rocker friction 1000 in `rover_sim.xacro` only and doesn't regenerate
+  `rover_sim.urdf`, which the launch files load. Both are 1000 here.
+- In the terrain sim, turning in place among rocks is marginal: one stall per run is normal and
+  the back-up usually frees it.
 - KDL IK often fails for pose goals on this 5-DOF arm; consider `pick_ik` or position-only IK.
 - `move_group` logs errors about `DepthImageOctomapUpdater`: `moveit_ros_perception` isn't installed. Harmless until depth-camera obstacle avoidance is needed; then install it or drop `sensors_3d.yaml`.
 - While a motor is faulted, holding the joystick makes `arm_controller` log "Holding position due to state tolerance violation" for every new target (safe, just noisy).

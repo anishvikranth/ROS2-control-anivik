@@ -93,7 +93,7 @@
       </geometry>
     </collision>
   </link>
-  <link name="left_back_wheel_link">
+  <link name="front_right_wheel_link">
     <inertial>
       <origin rpy="1.570796 0 0" xyz="-0.000784 -0.092012 0.001876"/>
       <mass value="3"/>
@@ -102,7 +102,7 @@
     <visual>
       <origin rpy="1.570796 0 0" xyz="-0.000784 -0.092012 0.001876"/>
       <geometry>
-        <mesh filename="package://rover_description/urdf/meshes/left_back_wheel_link_visual.obj"/>
+        <mesh filename="package://rover_description/urdf/meshes/front_right_wheel_link_visual.obj"/>
       </geometry>
     </visual>
     <collision>
@@ -255,14 +255,14 @@
     <parent link="left_rocker_link"/>
     <child link="back_left_wheel_link"/>
     <axis xyz="0 1 0"/>
-    <limit effort="10" lower="0" upper="0" velocity="1"/>
+    <limit effort="12" lower="0" upper="0" velocity="15"/>
   </joint>
   <joint name="back_right_wheel_link_joint" type="continuous">
     <origin rpy="-0.000001 0 0" xyz="-0.55172 -0.0135 -0.306193"/>
     <parent link="right_rocker_link"/>
     <child link="back_right_wheel_link"/>
     <axis xyz="0 1 0"/>
-    <limit effort="10" lower="0" upper="0" velocity="1"/>
+    <limit effort="12" lower="0" upper="0" velocity="15"/>
   </joint>
   <joint name="chassis_link_joint" type="fixed">
     <origin rpy="0 0 0" xyz="0.017593 -0.313117 -0.118479"/>
@@ -274,14 +274,14 @@
     <parent link="left_bogie_link"/>
     <child link="front_left_wheel_link"/>
     <axis xyz="0 1 0"/>
-    <limit effort="10" lower="0" upper="0" velocity="1"/>
+    <limit effort="12" lower="0" upper="0" velocity="15"/>
   </joint>
-  <joint name="left_back_wheel_link_joint" type="continuous">
+  <joint name="front_right_wheel_link_joint" type="continuous">
     <origin rpy="0 0 0" xyz="0.247131 -0.0135 -0.201737"/>
     <parent link="right_bogie_link"/>
-    <child link="left_back_wheel_link"/>
+    <child link="front_right_wheel_link"/>
     <axis xyz="0 1 0"/>
-    <limit effort="10" lower="0" upper="0" velocity="1"/>
+    <limit effort="12" lower="0" upper="0" velocity="15"/>
   </joint>
   <joint name="left_bogie_link_joint" type="revolute">
     <origin rpy="-0.000001 0 0" xyz="0.210291 0 -0.190873"/>
@@ -302,14 +302,14 @@
     <parent link="left_bogie_link"/>
     <child link="middle_left_wheel_link"/>
     <axis xyz="0 1 0"/>
-    <limit effort="10" lower="0" upper="0" velocity="1"/>
+    <limit effort="12" lower="0" upper="0" velocity="15"/>
   </joint>
   <joint name="middle_right_wheel_link_joint" type="continuous">
     <origin rpy="0 0 0" xyz="-0.236289 -0.0135 -0.201885"/>
     <parent link="right_bogie_link"/>
     <child link="middle_right_wheel_link"/>
     <axis xyz="0 1 0"/>
-    <limit effort="10" lower="0" upper="0" velocity="1"/>
+    <limit effort="12" lower="0" upper="0" velocity="15"/>
   </joint>
   <joint name="right_bogie_link_joint" type="revolute">
     <origin rpy="-0.000001 0 0" xyz="0.210291 0 -0.190873"/>
