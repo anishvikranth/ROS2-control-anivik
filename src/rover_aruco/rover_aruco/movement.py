@@ -30,13 +30,19 @@ UPDATED & FIXED:
 7. A back-up only counts as progress for the recovery count once the rover is
    recovery_reset_dist from where it first stalled; otherwise backing up reset the
    count every time and the rover looped forever instead of reaching ABORTED.
+8. Path Following: while the goal is more than path_handoff_dist away and a fresh
+   /planned_path (rover_traversability's path_planner) ends at the current goal, the
+   rover steers at a point path_lookahead ahead along that path instead of straight
+   at the goal, so it goes around no-go terrain. Close to the goal, or with no usable
+   path (none published, empty = no plan, stale, or planned to an older goal), it
+   steers straight at the goal as before.
 """
 
 import math
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist, PoseStamped
-from nav_msgs.msg import Odometry
+from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Int32
 
@@ -123,6 +129,24 @@ class GoalFollowerAvoider(Node):
         self._recover_start_time = None
         self._phase_before_recover = 'APPROACH'
 
+        # ---- Path Following ----
+        self.declare_parameter('path_topic', '/planned_path')
+        self.declare_parameter('path_lookahead', 1.0)        # m along the path to steer at
+        self.declare_parameter('path_handoff_dist', 1.5)     # m from the goal: steer straight from here
+        self.declare_parameter('path_timeout_sec', 3.0)      # older paths are ignored
+        self.declare_parameter('path_goal_match', 2.0)       # m; the path must end this close to the goal
+        # Rover centre in the odom child frame (chassis_footprint), m: the point that follows the
+        # path. Must match path_planner's base_offset (the frame sits ~0.31 m left of centre).
+        self.declare_parameter('base_offset', [-0.05, -0.31])
+        self.base_offset = list(self.get_parameter('base_offset').get_parameter_value().double_array_value)
+        self.path_lookahead = self.get_parameter('path_lookahead').get_parameter_value().double_value
+        self.path_handoff_dist = self.get_parameter('path_handoff_dist').get_parameter_value().double_value
+        self.path_timeout_sec = self.get_parameter('path_timeout_sec').get_parameter_value().double_value
+        self.path_goal_match = self.get_parameter('path_goal_match').get_parameter_value().double_value
+        self._path = []                 # [(x, y), ...] from the planner
+        self._path_time = None
+        self._following_path = None     # last mode logged (True = path, False = straight)
+
         # ---- Robot State ----
         self.x = 0.0
         self.y = 0.0
@@ -151,9 +175,41 @@ class GoalFollowerAvoider(Node):
         self.create_subscription(LaserScan, scan_topic, self.scan_cb, 10)
         self.create_subscription(PoseStamped, goal_topic, self.goal_cb, 10)
         self.create_subscription(Int32, '/current_target_id', self.target_id_cb, 10)
+        self.create_subscription(
+            Path, self.get_parameter('path_topic').get_parameter_value().string_value, self.path_cb, 1)
 
         self.create_timer(0.1, self.control_loop)  # 10 Hz
         self.get_logger().info('GoalFollowerAvoider ready with dynamic pose update support.')
+
+    def path_cb(self, msg: Path) -> None:
+        self._path = [(p.pose.position.x, p.pose.position.y) for p in msg.poses]
+        self._path_time = self.get_clock().now()
+
+    def _path_target(self, dist_to_goal: float):
+        """Point path_lookahead ahead along the planned path, or None to steer straight."""
+        if dist_to_goal <= self.path_handoff_dist or len(self._path) < 2 or self._path_time is None:
+            return None
+        if (self.get_clock().now() - self._path_time).nanoseconds / 1e9 > self.path_timeout_sec:
+            return None
+        end_x, end_y = self._path[-1]
+        if math.hypot(end_x - self.goal_x, end_y - self.goal_y) > self.path_goal_match:
+            return None                 # planned to a previous goal
+        cx, cy = self._centre()
+        # nearest path point to the rover, then walk path_lookahead along the path
+        k = min(range(len(self._path)),
+                key=lambda i: (self._path[i][0] - cx) ** 2 + (self._path[i][1] - cy) ** 2)
+        travelled = 0.0
+        while k < len(self._path) - 1 and travelled < self.path_lookahead:
+            travelled += math.hypot(self._path[k + 1][0] - self._path[k][0],
+                                    self._path[k + 1][1] - self._path[k][1])
+            k += 1
+        return self._path[k]
+
+    def _centre(self):
+        """The rover's centre in odom (self.x/y is chassis_footprint, off to one side)."""
+        ox, oy = self.base_offset
+        return (self.x + math.cos(self.yaw) * ox - math.sin(self.yaw) * oy,
+                self.y + math.sin(self.yaw) * ox + math.cos(self.yaw) * oy)
 
     def odom_cb(self, msg: Odometry) -> None:
         self.x = msg.pose.pose.position.x
@@ -259,6 +315,17 @@ class GoalFollowerAvoider(Node):
             cmd.angular.z = -0.8 if self.obstacle_angle > 0 else 0.8
             self._publish_and_check_stall(cmd)
             return
+
+        # Steer at a lookahead point on the planned path while the goal is far away;
+        # otherwise straight at the goal. Speed still comes from the distance to the goal.
+        target = self._path_target(dist_to_goal)
+        if (target is not None) != self._following_path:
+            self._following_path = target is not None
+            self.get_logger().info('Following the planned path.' if self._following_path
+                                   else 'Steering straight at the goal.')
+        if target is not None:
+            cx, cy = self._centre()
+            dx, dy = target[0] - cx, target[1] - cy
 
         # Proportional Steering
         target_yaw = math.atan2(dy, dx)

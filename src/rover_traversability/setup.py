@@ -27,6 +27,7 @@ setup(
     entry_points={
         'console_scripts': [
             'terrain_mapper = rover_traversability.terrain_mapper:main',
+            'path_planner = rover_traversability.path_planner:main',
         ],
     },
 )

@@ -188,6 +188,15 @@ def generate_launch_description():
         on_exit=[TimerAction(period=4.0, actions=[
             aruco_detector_node, goal_generator_node, marker_tracker_node, obs_avoid_node])]))
 
+    # Path planner: A* on the cost map to goal_generator's goal -> /planned_path (movement.py follows it)
+    path_planner_node = Node(
+        package='rover_traversability',
+        executable='path_planner',
+        name='path_planner',
+        output='screen',
+        parameters=[{'use_sim_time': False}]   # as terrain_mapper: no need for the 1 kHz /clock
+    )
+
     return LaunchDescription([
         set_gz_resource_path,
         gz_sim,
@@ -200,4 +209,5 @@ def generate_launch_description():
         start_navigation,
         rviz,
         terrain_mapper_node,
+        path_planner_node,
     ])

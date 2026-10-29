@@ -13,10 +13,13 @@
        let the chassis pitch ~45 deg about the pivots while driving, aiming the ZED at the sky. -->
   <xacro:arg name="rocker_friction" default="1000.0" />
 
-  <!-- Wheel friction as on rover_sim, which was tested on the terrain course. jade's default
-       sideways 0.05 lets the rover slide down any slope steeper than ~3 deg. -->
+  <!-- Wheel friction: 1.0 along the wheel, 0.5 sideways. Tested on jade: sideways 1.0 (as on
+       rover_sim) and the back-right wheel was dragged backwards in an in-place turn, which
+       turned 4 deg of a commanded ~206 (jade stuck turning near marker 1); 0.5 turns 126 deg and
+       still holds side-on on the big hill's 19 deg flank; 0.3 slides 8 cm in 6 s there.
+       jade's own default sideways 0.05 slides on any slope steeper than ~3 deg. -->
   <xacro:arg name="wheel_mu1" default="1.0" />
-  <xacro:arg name="wheel_mu2" default="1.0" />
+  <xacro:arg name="wheel_mu2" default="0.5" />
 
   <!-- DiffDrive's wheel odometry moves to /odom_wheel and /tf_wheel; OdometryPublisher
        below owns /odom. -->

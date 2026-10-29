@@ -86,12 +86,16 @@ class TerrainMapper(Node):
         self.declare_parameter('publish_rate', 2.0)         # Hz
         self.declare_parameter('max_tf_skew', 0.1)          # s between cloud stamp and the TF used
         self.declare_parameter('dump_path', '')             # if set, save layers to this .npz each publish
-        # Self-filter: points inside this box (base_frame, m) are the rover itself -- wheels and
-        # the stowed arm are in the ZED's view on jade -- and are dropped before mapping.
-        # Generous in z: dropping the ground under the rover costs nothing.
+        # Self-filter: points inside this box (base_frame, m) are the rover itself and are
+        # dropped before mapping. chassis_footprint sits ~0.31 m left of the chassis centre
+        # (rover_raw/rover_sim chassis_link_joint offset), so the box is offset to match: wheels
+        # at y +0.02 and -0.64 (+-0.09 tyre). It reaches 1.05 m forward for jade's stowed
+        # gripper (fingers at x ~0.83, z ~0.45): at 0.75 m the ZED mapped them as a tall rock
+        # just ahead of the rover, leaving a no-go trail and blocking the path. Generous in z:
+        # dropping the ground under the rover costs nothing.
         self.declare_parameter('self_filter', True)
-        self.declare_parameter('self_box_min', [-0.80, -0.55, -1.0])
-        self.declare_parameter('self_box_max', [0.75, 0.55, 1.5])
+        self.declare_parameter('self_box_min', [-0.80, -0.85, -1.0])
+        self.declare_parameter('self_box_max', [1.05, 0.25, 1.5])
 
         gp = lambda name: self.get_parameter(name).value  # noqa: E731
         self.map_frame = gp('map_frame')
