@@ -274,6 +274,10 @@ once a second, published as `/planned_path` (`nav_msgs/Path`; empty = no plan). 
   `goal_tolerance` (1.0 m); a rover already standing on blocked ground plans its way out.
 - Plans from the rover's centre (`base_offset`, see Known issues). ~5–25 ms per plan. Like
   the mapper, it runs without `use_sim_time`.
+- **Speed limit** (`/speed_limit`, 5 Hz): the worst cost-map cell on the next `slow_lookahead`
+  (2.5 m) of the path, so the rover slows *before* the trench or a steep hill. Cost up to
+  `slow_cost_start` (30): `speed_max` (0.8 m/s); from there to no-go: down linearly to
+  `speed_min` (0.25 m/s); unseen ground ahead: `speed_unknown` (0.5 m/s).
 
 #### movement.py on rough ground
 
@@ -285,6 +289,7 @@ All ROS parameters:
 | While driving, caps the turn rate so the inner wheels keep part of the forward speed (no pivoting) | `track_width` (0.63 m), `min_inner_wheel_ratio` (0.3) |
 | Backs up when motion is commanded but the rover hasn't moved or turned | `stall_timeout_sec` (3), `stall_min_dist` (0.05 m), `stall_min_yaw` (0.05 rad), `backup_duration_sec` (1.5), `backup_speed` (0.3 m/s) |
 | Stops in `ABORTED` after repeated back-ups without getting `recovery_reset_dist` past the first stall; a new target ID clears it | `max_recoveries` (3), `recovery_reset_dist` (0.5 m) |
+| Caps its speed at the lowest of: its approach speed, the planner's `/speed_limit` (terrain ahead, if fresh) and a **ride limit** from the ZED IMU. The ride limit is the RMS roll+pitch rate over 0.5 s (how much the rover is actually shaking): above `ride_slow_start` it drops linearly to `ride_speed_min` at `ride_slow_full`, with a fast attack and slow release so it doesn't speed up between rocks. It catches rocks the 15 cm map averages away (sim: rock garden 0.16/0.35 rad/s median/90%, smooth hills ≤0.10) | `speed_limit_timeout_sec` (1), `ride_slow_start` (0.12 rad/s), `ride_slow_full` (0.35), `ride_speed_min` (0.3 m/s), `ride_release_sec` (1.5 s), `imu_topic` |
 | Follows `/planned_path` while the goal is far: steers at a point `path_lookahead` along it; straight at the goal within `path_handoff_dist`, or when the path is missing, empty, stale or for an older goal | `path_lookahead` (1.0 m), `path_handoff_dist` (1.5 m), `path_timeout_sec` (3), `path_goal_match` (2.0 m), `base_offset` (−0.05, −0.31) |
 
 #### Rover model settings
@@ -308,7 +313,11 @@ its spawn pose and propped the rover so it couldn't drive.
 Tested headless with the planner: `rover_sim` reached all 3 markers in 99 s with max roll
 4° on the big-hill leg; jade reached all 3 in 49 s of driving with no stalls or back-ups, max
 roll 7° (before the planner both drove straight at each goal and rolled ~20° crossing the big
-hill's side). Next: slower speeds on steep or rough stretches of the path.
+hill's side). With speed limiting, `rover_sim` slows to ~0.2–0.3 m/s in the trench and on the
+big hill (map limit) and caps its speed in the rock garden (ride limit; top speed there
+0.72 → 0.59 m/s) while running 0.8 m/s on flat ground; the course takes ~150 s instead of ~100 s.
+The ride thresholds come from the sim IMU; re-check them on the real rover (a rosbag over rocky
+ground).
 
 ## Real arm
 

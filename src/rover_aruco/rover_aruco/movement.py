@@ -36,15 +36,25 @@ UPDATED & FIXED:
    at the goal, so it goes around no-go terrain. Close to the goal, or with no usable
    path (none published, empty = no plan, stale, or planned to an older goal), it
    steers straight at the goal as before.
+9. Speed Limit: forward speed is capped by the latest /speed_limit (path_planner: slower
+   ahead of steep, rough or unseen ground) while it is fresh (speed_limit_timeout_sec);
+   with no fresh limit the rover drives as before.
+10. Ride Roughness: the ZED IMU's roll+pitch rate (RMS over ride_window_sec) measures how much
+   the rover is actually shaking; above ride_slow_start the speed drops linearly to
+   ride_speed_min at ride_slow_full. Fast attack, slow release (ride_release_sec), so it
+   doesn't speed up between two rocks. Catches rocks the 15 cm cost map averages away
+   (in sim the rock garden shook 0.16/0.35 rad/s median/90%, smooth hills 0.03-0.05/<=0.10).
 """
 
+import collections
 import math
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist, PoseStamped
 from nav_msgs.msg import Odometry, Path
+from sensor_msgs.msg import Imu
 from sensor_msgs.msg import LaserScan
-from std_msgs.msg import Int32
+from std_msgs.msg import Float64, Int32
 
 
 class GoalFollowerAvoider(Node):
@@ -144,6 +154,29 @@ class GoalFollowerAvoider(Node):
         self.path_timeout_sec = self.get_parameter('path_timeout_sec').get_parameter_value().double_value
         self.path_goal_match = self.get_parameter('path_goal_match').get_parameter_value().double_value
         self._path = []                 # [(x, y), ...] from the planner
+        self.declare_parameter('speed_limit_topic', '/speed_limit')
+        self.declare_parameter('speed_limit_timeout_sec', 1.0)
+        self.speed_limit_timeout_sec = self.get_parameter('speed_limit_timeout_sec').get_parameter_value().double_value
+        self._speed_limit = None
+        self._speed_limit_time = None
+
+        # ---- Ride Roughness (IMU) ----
+        self.declare_parameter('imu_topic', '/zed/imu/data')
+        self.declare_parameter('ride_window_sec', 0.5)       # RMS window for the roll+pitch rate
+        self.declare_parameter('ride_slow_start', 0.12)      # rad/s: start slowing above this
+        self.declare_parameter('ride_slow_full', 0.35)       # rad/s: ride_speed_min from here
+        self.declare_parameter('ride_speed_min', 0.3)        # m/s
+        self.declare_parameter('ride_release_sec', 1.5)      # time constant to speed back up
+        gpd = lambda name: self.get_parameter(name).get_parameter_value().double_value  # noqa: E731
+        self.ride_window_sec = gpd('ride_window_sec')
+        self.ride_slow_start = gpd('ride_slow_start')
+        self.ride_slow_full = gpd('ride_slow_full')
+        self.ride_speed_min = gpd('ride_speed_min')
+        self.ride_release_sec = gpd('ride_release_sec')
+        self._ride_samples = collections.deque()   # (t, wx^2 + wy^2)
+        self._ride_level = 0.0                      # envelope of the RMS roll+pitch rate (rad/s)
+        self._ride_time = None                      # stamp of the last IMU sample
+        self._ride_logged = None
         self._path_time = None
         self._following_path = None     # last mode logged (True = path, False = straight)
 
@@ -177,9 +210,53 @@ class GoalFollowerAvoider(Node):
         self.create_subscription(Int32, '/current_target_id', self.target_id_cb, 10)
         self.create_subscription(
             Path, self.get_parameter('path_topic').get_parameter_value().string_value, self.path_cb, 1)
+        self.create_subscription(
+            Float64, self.get_parameter('speed_limit_topic').get_parameter_value().string_value,
+            self.speed_limit_cb, 1)
+        self.create_subscription(
+            Imu, self.get_parameter('imu_topic').get_parameter_value().string_value, self.imu_cb, 50)
 
         self.create_timer(0.1, self.control_loop)  # 10 Hz
         self.get_logger().info('GoalFollowerAvoider ready with dynamic pose update support.')
+
+    def speed_limit_cb(self, msg: Float64) -> None:
+        self._speed_limit = msg.data
+        self._speed_limit_time = self.get_clock().now()
+
+    def imu_cb(self, msg: Imu) -> None:
+        t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+        w = msg.angular_velocity
+        self._ride_samples.append((t, w.x * w.x + w.y * w.y))   # roll + pitch rate; yaw is turning
+        while self._ride_samples and self._ride_samples[0][0] < t - self.ride_window_sec:
+            self._ride_samples.popleft()
+        rms = math.sqrt(sum(v for _, v in self._ride_samples) / len(self._ride_samples))
+        if self._ride_time is None:
+            self._ride_level = rms
+        else:
+            decay = math.exp(-max(t - self._ride_time, 0.0) / self.ride_release_sec)
+            self._ride_level = max(rms, self._ride_level * decay)    # fast attack, slow release
+        self._ride_time = t
+
+    def _ride_speed_limit(self) -> float:
+        """Speed limit from how much the rover is shaking (max_linear_speed with no IMU)."""
+        if self._ride_time is None:
+            return self.max_linear_speed
+        frac = (self._ride_level - self.ride_slow_start) / (self.ride_slow_full - self.ride_slow_start)
+        return self.max_linear_speed - min(max(frac, 0.0), 1.0) * (self.max_linear_speed - self.ride_speed_min)
+
+    def _current_speed_limit(self) -> float:
+        """Lower of the planner's limit (terrain ahead; if fresh) and the ride limit (shaking now)."""
+        limit = self.max_linear_speed
+        if self._speed_limit is not None and \
+                (self.get_clock().now() - self._speed_limit_time).nanoseconds / 1e9 <= self.speed_limit_timeout_sec:
+            limit = min(limit, self._speed_limit)
+        ride = self._ride_speed_limit()
+        if ride < limit:
+            if self._ride_logged is None or abs(ride - self._ride_logged) > 0.1:
+                self.get_logger().info(f'Rough ride ({self._ride_level:.2f} rad/s): speed limit {ride:.2f} m/s')
+                self._ride_logged = ride
+            limit = ride
+        return limit
 
     def path_cb(self, msg: Path) -> None:
         self._path = [(p.pose.position.x, p.pose.position.y) for p in msg.poses]
@@ -342,7 +419,7 @@ class GoalFollowerAvoider(Node):
             cmd.angular.z = self._turn_in_place_speed(self.kp_angular * yaw_error)
         else:
             speed_factor = math.cos(yaw_error)
-            cmd.linear.x = min(self.max_linear_speed, self.kp_linear * dist_to_goal) * speed_factor
+            cmd.linear.x = min(self._current_speed_limit(), self.kp_linear * dist_to_goal) * speed_factor
             # Keep the inner wheels turning forward: inner = v - |w| * track / 2 >= ratio * v
             w_max = min(self.max_angular_speed,
                         2.0 * cmd.linear.x * (1.0 - self.min_inner_wheel_ratio) / self.track_width)
