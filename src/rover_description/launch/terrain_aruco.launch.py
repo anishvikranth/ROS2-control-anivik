@@ -234,7 +234,9 @@ def generate_launch_description():
         executable='terrain_mapper',
         name='terrain_mapper',
         output='screen',
-        parameters=[sim_time_param]
+        # Deliberately not on sim time: the 1 kHz /clock floods this Python node (see
+        # terrain_mapper.py). It stamps its maps with the cloud times, which are sim time.
+        parameters=[{'use_sim_time': False}]
     )
 
     return LaunchDescription([

@@ -208,24 +208,50 @@ What the terrain launches add (`rover_sim.urdf` and `jade.xacro` are unchanged):
 
 #### terrain_mapper (`rover_traversability`)
 
-Each depth cloud goes into the `odom` frame, points inside the rover's own box are dropped
-(on jade the ZED sees the front wheels and the stowed arm), and the rest are fused into a
-20 m height grid of 0.15 m cells centred on the rover. Twice a second a plane is fitted around
-every cell:
+Each depth cloud goes into the `odom` frame using the rover's 3D pose (so its tilt is taken
+out), points inside the rover's own box are dropped (on jade the ZED sees the front wheels and
+the stowed arm), and the rest are fused into a 20 m height grid of 0.15 m cells centred on the
+rover.
+
+**Uncertainty-weighted fusion.** Stereo depth error grows with range², so every point gets
+σ = max(`noise_min`, `noise_k` · range²) (defaults 0.01 m and 0.0033: ~1% at 3 m, ~5% at 15 m,
+roughly the ZED's spec). Each cell keeps a height *and* a variance and fuses readings like a
+1-D Kalman filter, weighted by 1/σ²: a close reading replaces a far, noisy one, and far
+readings can't wash out good close ones. `process_noise` (0.01 m) keeps cells able to change.
+Cells still more uncertain than `max_cell_sigma` (0.2 m) are left unknown rather than guessed.
+In a benchmark with range-dependent stereo noise this cut false no-go at 8–12 m from ~20% to
+~0%.
+
+Twice a second a plane is fitted (weighted by certainty) around every cell:
 
 | Layer | Meaning |
 |---|---|
 | slope | angle of the local plane |
-| step | highest minus lowest height *relative to the plane* in a 0.75 m window, so a smooth slope doesn't read as a step |
+| step | highest minus lowest height *relative to the plane* in a 0.75 m window, each cell shrunk by 2σ first, so a smooth slope or plain noise doesn't read as a step |
 | rough | RMS distance from the plane |
+| sigma | the cell's height uncertainty |
 
 Cost is 1–99, rising with whichever limit is closer; 100 (no-go) above `max_slope_deg` (20)
-or `max_step_m` (0.12, the wheel radius); −1 unseen. Published as `/traversability/costmap`
-(`OccupancyGrid`) and `/traversability/cells` (`PointCloud2` with slope/step/rough/cost fields;
-RViz can colour by any of them). Set `dump_path:=/tmp/map.npz` to save the layers, then
+or `max_step_m` (0.12, the wheel radius); −1 unseen or too uncertain. Published as
+`/traversability/costmap` (`OccupancyGrid`) and `/traversability/cells` (`PointCloud2` with
+slope/step/rough/cost/sigma fields). Both are stamped with the newest fused cloud's time.
+
+**Run it without `use_sim_time`** (the terrain launches do): with sim time, the ~1 kHz `/clock`
+from Gazebo flooded this Python node and an update took 1–3 s instead of ~0.2 s. Clouds and
+updates run in separate callback groups, so a slow update can't starve the clouds. In a
+`rover_sim` run it fused ~10 clouds/s and the map matched the exact terrain to 1.5 cm height
+and 3° slope (95th percentile).
+
+**Viewing it:** `config/terrain.rviz` shows the cost map (costmap colours), the start pose
+(axes at the `odom` origin, red = initial heading), the driven path and the rover:
+
+```bash
+rviz2 -d ~/sim_repo_2/src/rover_description/config/terrain.rviz --ros-args -p use_sim_time:=true
+```
+
+Set `dump_path:=/tmp/map.npz` to save the layers, then
 `python3 src/rover_traversability/scripts/check_terrain_map.py /tmp/map.npz` compares them
-with the generator's exact terrain. On `rover_sim` the map matched to < 1 cm height and ~1°
-slope (95th percentile).
+with the generator's exact terrain.
 
 #### movement.py on rough ground
 
@@ -595,9 +621,9 @@ ones used in the Arduino IDE.
   `rover_sim.urdf`, which the launch files load. Both are 1000 here.
 - In the terrain sim, turning in place among rocks is marginal: one stall per run is normal and
   the back-up usually frees it.
-- On jade, `terrain_mapper`'s layer update took ~1.1 s (vs tens of ms on `rover_sim`), so only a
-  fraction of the depth clouds get fused. Likely CPU contention in the heavier sim (four
-  rendered cameras, a 1 kHz controller manager); not yet profiled.
+- `terrain_mapper` used to fuse only a fraction of the clouds (worst on jade). Fixed: the cause was
+  the 1 kHz `/clock` under `use_sim_time` plus clouds and updates sharing one callback group;
+  the jade run hasn't been repeated since the fix.
 - KDL IK often fails for pose goals on this 5-DOF arm; consider `pick_ik` or position-only IK.
 - `move_group` logs errors about `DepthImageOctomapUpdater`: `moveit_ros_perception` isn't installed. Harmless until depth-camera obstacle avoidance is needed; then install it or drop `sensors_3d.yaml`.
 - While a motor is faulted, holding the joystick makes `arm_controller` log "Holding position due to state tolerance violation" for every new target (safe, just noisy).

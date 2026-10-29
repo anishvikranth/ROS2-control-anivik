@@ -9,8 +9,19 @@ traversability cost grid.
   every 1/publish_rate s:  TerrainGrid.layers() -> cost
     /traversability/costmap  nav_msgs/OccupancyGrid   -1 unknown, 1..99 cost, 100 no-go
     /traversability/cells    sensor_msgs/PointCloud2  one point per known cell at its
-                                                      height, fields slope/step/rough/cost
+                                                      height, fields slope/step/rough/cost/sigma
                                                       (RViz: colour by any of them)
+
+Each point's height variance comes from its range, sigma = max(noise_min, noise_k * r^2):
+stereo depth error grows with range squared (the default k gives ~1% at 3 m and ~5% at
+15 m, roughly the ZED's spec). Cells fuse readings by 1/variance, so close readings
+dominate far ones; cells still too uncertain (sigma > max_cell_sigma) stay unknown.
+
+Run it WITHOUT use_sim_time, also in Gazebo: with sim time every node subscribes to
+/clock, which Gazebo publishes at ~1 kHz, and in this Python node that flood alone made a
+map update take 1-3 s instead of ~0.2 s and starved the clouds. Nothing here needs the
+node's clock: TF lookups use each cloud's own stamp and outputs carry the newest cloud's
+stamp. (On the real rover there is no /clock either way.)
 
 The cloud must be transformable into map_frame at its stamp. In the terrain sim
 odom -> chassis_footprint is the full 3D pose (terrain_aruco.launch.py), so the
@@ -18,9 +29,15 @@ rover's pitch and roll are taken out before heights are binned.
 """
 
 import os
+import threading
 import time
 
-import numpy as np
+# One BLAS thread: numpy's multi-threaded BLAS fights the executor's threads and the
+# other processes (an update once took 1-2 s instead of milliseconds). Set before import.
+os.environ.setdefault('OPENBLAS_NUM_THREADS', '1')
+os.environ.setdefault('OMP_NUM_THREADS', '1')
+
+import numpy as np  # noqa: E402
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.duration import Duration
@@ -58,7 +75,10 @@ class TerrainMapper(Node):
         self.declare_parameter('min_range', 0.3)            # m from the camera
         self.declare_parameter('max_range', 8.0)            # m; stereo depth error grows with range^2
         self.declare_parameter('max_points', 60000)         # random subsample per cloud
-        self.declare_parameter('max_fusion_weight', 10.0)   # frames of history per cell
+        self.declare_parameter('noise_k', 0.0033)           # point sigma = max(noise_min, noise_k * range^2)
+        self.declare_parameter('noise_min', 0.01)           # m
+        self.declare_parameter('process_noise', 0.01)       # m added per update, so cells can still change
+        self.declare_parameter('max_cell_sigma', 0.2)       # m; more uncertain cells are left unknown
         self.declare_parameter('window_cells', 2)           # plane-fit window = (2w+1)^2 cells
         self.declare_parameter('min_window_points', 6)
         self.declare_parameter('max_slope_deg', 20.0)       # no-go above (traction limit with margin)
@@ -89,24 +109,33 @@ class TerrainMapper(Node):
         self.self_box_min = np.array(gp('self_box_min'), dtype=float)
         self.self_box_max = np.array(gp('self_box_max'), dtype=float)
 
-        self.grid = TerrainGrid(gp('resolution'), gp('map_size'), gp('max_fusion_weight'))
+        self.noise_k = gp('noise_k')
+        self.noise_min = gp('noise_min')
+        self.max_cell_sigma = gp('max_cell_sigma')
+        self.grid = TerrainGrid(gp('resolution'), gp('map_size'), gp('process_noise'))
         self.rng = np.random.default_rng(0)
         self.frames_fused = 0
+        self.last_cloud_stamp = None   # outputs are stamped with the newest cloud they include
         self.tf_failures = 0
         self.self_points = 0
 
-        # TF callbacks must keep running while cloud_cb waits on a lookup. tf2 puts its
-        # subscriptions in their own reentrant group; the mapping work gets a separate group and
-        # main() spins everything on one MultiThreadedExecutor. (Not spin_thread=True: that
-        # spins this same node in a second executor, and on jade the TF feed stalled after ~10 s.)
+        # Three things run concurrently on one MultiThreadedExecutor (see main()): TF (tf2 puts
+        # its subscriptions in their own reentrant group), fusing clouds, and computing layers,
+        # each in its own group. Clouds and layers used to share one group: when an update ran
+        # longer than the timer period the timer was always due, and clouds were starved after
+        # the first few. A lock guards the grid; layers are computed on a copy.
+        # (Not spin_thread=True: that spins this node in a second executor, and on jade the TF
+        # feed stalled after ~10 s.)
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
-        work = MutuallyExclusiveCallbackGroup()
+        self.grid_lock = threading.Lock()
 
-        self.create_subscription(PointCloud2, gp('cloud_topic'), self.cloud_cb, 2, callback_group=work)
+        self.create_subscription(PointCloud2, gp('cloud_topic'), self.cloud_cb, 2,
+                                 callback_group=MutuallyExclusiveCallbackGroup())
         self.cost_pub = self.create_publisher(OccupancyGrid, '/traversability/costmap', 1)
         self.cells_pub = self.create_publisher(PointCloud2, '/traversability/cells', 1)
-        self.create_timer(1.0 / gp('publish_rate'), self.publish_layers, callback_group=work)
+        self.create_timer(1.0 / gp('publish_rate'), self.publish_layers,
+                          callback_group=MutuallyExclusiveCallbackGroup())
 
         self.get_logger().info(
             f'TerrainMapper: {self.grid.n}x{self.grid.n} cells of {self.grid.res} m '
@@ -141,12 +170,15 @@ class TerrainMapper(Node):
 
         pts = point_cloud2.read_points_numpy(msg, field_names=('x', 'y', 'z'), skip_nans=True)
         pts = pts[np.isfinite(pts).all(axis=1)].astype(np.float64)
-        rng = np.linalg.norm(pts, axis=1)
-        pts = pts[(rng > self.min_range) & (rng < self.max_range)]
+        rng = np.linalg.norm(pts, axis=1)               # range from the camera
+        keep = (rng > self.min_range) & (rng < self.max_range)
+        pts, rng = pts[keep], rng[keep]
         if len(pts) > self.max_points:
-            pts = pts[self.rng.choice(len(pts), self.max_points, replace=False)]
+            pick = self.rng.choice(len(pts), self.max_points, replace=False)
+            pts, rng = pts[pick], rng[pick]
         if len(pts) == 0:
             return
+        variances = np.maximum(self.noise_min, self.noise_k * rng * rng) ** 2
 
         R = quat_to_matrix(tf.transform.rotation)
         t = tf.transform.translation
@@ -157,37 +189,44 @@ class TerrainMapper(Node):
         if self.self_filter:
             in_base = (pts - base_xyz) @ quat_to_matrix(base.transform.rotation)  # R^T (p - t)
             inside = np.all((in_base > self.self_box_min) & (in_base < self.self_box_max), axis=1)
-            pts = pts[~inside]
+            pts, variances = pts[~inside], variances[~inside]
             self.self_points += int(inside.sum())
 
-        self.grid.recenter(bt.x, bt.y)
-        self.grid.fuse(pts)
+        with self.grid_lock:
+            self.grid.recenter(bt.x, bt.y)
+            self.grid.fuse(pts, variances)
         self.frames_fused += 1
+        self.last_cloud_stamp = msg.header.stamp
 
     def publish_layers(self) -> None:
         if self.frames_fused == 0:
             return
         t0 = time.monotonic()
-        slope, step, rough, valid = self.grid.layers(self.window_cells, self.min_window_points)
+        with self.grid_lock:
+            grid = self.grid.copy()
+        slope, step, rough, valid, sigma = grid.layers(
+            self.window_cells, self.min_window_points, self.max_cell_sigma)
         cost = TerrainGrid.cost(slope, step, valid, self.max_slope_deg, self.max_step_m)
-        stamp = self.get_clock().now().to_msg()
+        # The newest fused cloud's time, not this node's clock: then the map lines up with TF
+        # whether or not the node uses sim time (and it shouldn't, see the module docstring).
+        stamp = self.last_cloud_stamp
 
         grid_msg = OccupancyGrid()
         grid_msg.header = Header(stamp=stamp, frame_id=self.map_frame)
         grid_msg.info.map_load_time = stamp
-        grid_msg.info.resolution = float(self.grid.res)
-        grid_msg.info.width = grid_msg.info.height = self.grid.n
-        grid_msg.info.origin.position.x = float(self.grid.origin_x)
-        grid_msg.info.origin.position.y = float(self.grid.origin_y)
+        grid_msg.info.resolution = float(grid.res)
+        grid_msg.info.width = grid_msg.info.height = grid.n
+        grid_msg.info.origin.position.x = float(grid.origin_x)
+        grid_msg.info.origin.position.y = float(grid.origin_y)
         grid_msg.info.origin.orientation.w = 1.0
         grid_msg.data = cost.ravel().tolist()
         self.cost_pub.publish(grid_msg)
 
-        X, Y = self.grid.cell_centres()
+        X, Y = grid.cell_centres()
         cells = np.zeros(int(valid.sum()), dtype=[(f, np.float32) for f in
-                                                  ('x', 'y', 'z', 'slope', 'step', 'rough', 'cost')])
-        for name, arr in (('x', X), ('y', Y), ('z', self.grid.height), ('slope', slope),
-                          ('step', step), ('rough', rough), ('cost', cost)):
+                                                  ('x', 'y', 'z', 'slope', 'step', 'rough', 'cost', 'sigma')])
+        for name, arr in (('x', X), ('y', Y), ('z', grid.height), ('slope', slope),
+                          ('step', step), ('rough', rough), ('cost', cost), ('sigma', sigma)):
             cells[name] = arr[valid]
         fields = [PointField(name=f, offset=4 * k, datatype=PointField.FLOAT32, count=1)
                   for k, f in enumerate(cells.dtype.names)]
@@ -196,9 +235,9 @@ class TerrainMapper(Node):
         if self.dump_path:
             # Write then rename, so a reader never sees a half-written file
             tmp = self.dump_path + '.tmp.npz'
-            np.savez(tmp, height=self.grid.height, slope=slope, step=step, rough=rough,
-                     cost=cost, valid=valid, origin=(self.grid.origin_x, self.grid.origin_y),
-                     res=self.grid.res)
+            np.savez(tmp, height=grid.height, slope=slope, step=step, rough=rough, sigma=sigma,
+                     cost=cost, valid=valid, origin=(grid.origin_x, grid.origin_y),
+                     res=grid.res)
             os.replace(tmp, self.dump_path)
 
         dt = time.monotonic() - t0
@@ -212,7 +251,7 @@ class TerrainMapper(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = TerrainMapper()
-    executor = MultiThreadedExecutor(num_threads=3)
+    executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(node)
     try:
         executor.spin()
